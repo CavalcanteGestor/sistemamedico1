@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+
+# Production
+/build
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env*.local
+.env
+.env.production
+.env.development
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# Arquivos de configuração sensíveis (n8n workflows podem ter dados sensíveis)
+# Mantenha backups seguros destes arquivos
+Lumi.json
+MCPSLumi.json
+
+# Documentação de desenvolvimento (mantenha apenas README.md se necessário)
+*.md
+!README.md
+!supabase/README.md
+!GUIA_*.md
+!INSTALACAO_*.md
+!DEPLOY_*.md
+!CONFIGURAR_*.md
+!AVISOS_*.md
+
+# Diretórios de seed (desenvolvimento apenas)
+app/api/seed/
+app/dashboard/seed/

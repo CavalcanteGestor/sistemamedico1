@@ -1,0 +1,642 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+// Separator component not available, using div instead
+import {
+  User,
+  Phone,
+  Mail,
+  Calendar,
+  Clock,
+  MapPin,
+  FileText,
+  Users,
+  Edit,
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  TrendingUp,
+  Briefcase,
+  Stethoscope,
+  Loader2,
+} from 'lucide-react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { useRouter } from 'next/navigation'
+import { AIControlToggle } from './ai-control-toggle'
+import { useToast } from '@/hooks/use-toast'
+
+interface ContactInfoSidebarProps {
+  phone: string
+  contactName?: string
+  onQuickMessage?: (message: string) => void
+}
+
+interface QuickMessageTopic {
+  id: string
+  name: string
+  description?: string
+  icon?: string
+  color?: string
+  order_index: number
+  active: boolean
+}
+
+interface QuickMessage {
+  id: string
+  topic_id: string
+  label: string
+  message: string
+  icon?: string
+  order_index: number
+  active: boolean
+}
+
+// Ícone dinâmico helper
+const getIconComponent = (iconName?: string) => {
+  const iconMap: Record<string, any> = {
+    Calendar,
+    FileText,
+    MessageSquare,
+    Clock,
+    CheckCircle2,
+    Phone,
+    Mail,
+    MapPin,
+    User,
+    Users,
+    Edit,
+    TrendingUp,
+    Briefcase,
+    Stethoscope,
+  }
+  return iconName ? (iconMap[iconName] || MessageSquare) : MessageSquare
+}
+
+export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: ContactInfoSidebarProps) {
+  const [lead, setLead] = useState<any>(null)
+  const [patient, setPatient] = useState<any>(null)
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [humanSupportActive, setHumanSupportActive] = useState(false)
+  const [topics, setTopics] = useState<QuickMessageTopic[]>([])
+  const [quickMessages, setQuickMessages] = useState<QuickMessage[]>([])
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const supabase = createClient()
+  const router = useRouter()
+  const { toast } = useToast()
+
+  useEffect(() => {
+    loadContactInfo()
+    loadQuickMessageTopics()
+  }, [phone])
+
+  useEffect(() => {
+    if (selectedTopicId) {
+      loadQuickMessages(selectedTopicId)
+    }
+  }, [selectedTopicId])
+
+  const loadContactInfo = async () => {
+    try {
+      setLoading(true)
+      const phoneClean = phone.replace('@s.whatsapp.net', '').trim()
+
+      // Buscar lead
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('*')
+        .or(`telefone.eq.${phone},telefone.eq.${phoneClean},telefone.ilike.%${phoneClean}%`)
+        .maybeSingle()
+
+      setLead(leadData)
+
+      // Buscar paciente por telefone
+      let patientByPhone = null
+      let patientByEmail = null
+
+      const { data: patientByPhoneData } = await supabase
+        .from('patients')
+        .select('*')
+        .eq('phone', phoneClean)
+        .maybeSingle()
+
+      patientByPhone = patientByPhoneData
+
+      // Se não encontrou por telefone e lead tem email, tentar por email
+      if (!patientByPhone && leadData?.email) {
+        const { data: patientByEmailData } = await supabase
+          .from('patients')
+          .select('*')
+          .eq('email', leadData.email.trim())
+          .maybeSingle()
+
+        patientByEmail = patientByEmailData
+      }
+
+      const currentPatient = patientByPhone || patientByEmail
+      if (currentPatient) {
+        setPatient(currentPatient)
+      }
+
+      // Buscar agendamentos (próximos e recentes)
+      if (currentPatient?.id) {
+        const { data: appointmentsData } = await supabase
+          .from('appointments')
+          .select(`
+            *,
+            doctors:doctor_id (name, crm),
+            patients:patient_id (name)
+          `)
+          .eq('patient_id', currentPatient.id)
+          .order('appointment_date', { ascending: false })
+          .order('appointment_time', { ascending: false })
+          .limit(5)
+
+        setAppointments(appointmentsData || [])
+      }
+
+      // Verificar atendimento humano
+      const { data: humanSupport } = await supabase
+        .from('atendimento_humano')
+        .select('ativo')
+        .eq('telefone', phone)
+        .maybeSingle()
+
+      setHumanSupportActive(humanSupport?.ativo === true)
+    } catch (error) {
+      console.error('Erro ao carregar informações do contato:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadQuickMessageTopics = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quick_message_topics')
+        .select('*')
+        .eq('active', true)
+        .order('order_index', { ascending: true })
+
+      if (error) {
+        // Se a tabela não existe, não é um erro crítico - apenas não mostrar tópicos
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.warn('Tabela quick_message_topics não existe. Execute a migration 027_quick_message_templates.sql')
+          return
+        }
+        throw error
+      }
+
+      if (data && data.length > 0) {
+        setTopics(data)
+        // Selecionar o primeiro tópico por padrão
+        setSelectedTopicId(data[0].id)
+      }
+    } catch (error: any) {
+      // Melhorar log de erro
+      const errorMessage = error?.message || error?.code || JSON.stringify(error)
+      console.error('Erro ao carregar tópicos:', errorMessage, error)
+      // Não mostrar toast para erro de tabela não existente
+      if (error?.code !== '42P01' && !error?.message?.includes('does not exist')) {
+        toast({
+          title: 'Aviso',
+          description: 'Não foi possível carregar os tópicos de mensagens rápidas',
+          variant: 'destructive',
+        })
+      }
+    }
+  }
+
+  const loadQuickMessages = async (topicId: string) => {
+    try {
+      setLoadingMessages(true)
+      const { data, error } = await supabase
+        .from('quick_messages')
+        .select('*')
+        .eq('topic_id', topicId)
+        .eq('active', true)
+        .order('order_index', { ascending: true })
+
+      if (error) {
+        // Se a tabela não existe, não é um erro crítico
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.warn('Tabela quick_messages não existe. Execute a migration 027_quick_message_templates.sql')
+          setQuickMessages([])
+          return
+        }
+        throw error
+      }
+
+      setQuickMessages(data || [])
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.code || JSON.stringify(error)
+      console.error('Erro ao carregar mensagens rápidas:', errorMessage, error)
+      // Não mostrar toast para erro de tabela não existente
+      if (error?.code !== '42P01' && !error?.message?.includes('does not exist')) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar as mensagens rápidas',
+          variant: 'destructive',
+        })
+      }
+      setQuickMessages([])
+    } finally {
+      setLoadingMessages(false)
+    }
+  }
+
+  const handleQuickMessage = (message: string) => {
+    if (onQuickMessage) {
+      onQuickMessage(message)
+    }
+  }
+
+  const ETAPA_COLORS: Record<string, string> = {
+    primeiro_contato: 'bg-blue-500',
+    interesse: 'bg-yellow-500',
+    agendado: 'bg-green-500',
+    confirmou_presenca: 'bg-purple-500',
+    compareceu: 'bg-emerald-500',
+    realizado: 'bg-gray-600',
+    followup: 'bg-orange-500',
+  }
+
+  const ETAPA_LABELS: Record<string, string> = {
+    primeiro_contato: 'Primeiro Contato',
+    interesse: 'Interesse',
+    agendado: 'Agendado',
+    confirmou_presenca: 'Confirmou Presença',
+    compareceu: 'Compareceu',
+    realizado: 'Realizado',
+    followup: 'Follow-up',
+  }
+
+  if (loading) {
+    return (
+      <div className="w-80 border-l bg-muted/30 p-4 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  const hasInfo = lead || patient
+
+  if (!hasInfo) {
+    return (
+      <div className="w-80 border-l bg-muted/30 p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Informações do Contato</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Nenhum cadastro encontrado para este número.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-80 border-l bg-muted/30 flex flex-col">
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-4">
+          {/* Controle de Atendimento Humano */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>Atendimento</span>
+                <AIControlToggle
+                  phone={phone}
+                  onToggle={(active) => setHumanSupportActive(active)}
+                />
+              </CardTitle>
+            </CardHeader>
+          </Card>
+
+          {/* Informações do Lead */}
+          {lead && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Lead
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium">{lead.nome || contactName || 'Sem nome'}</p>
+                    {lead.status === 'convertido' && (
+                      <Badge className="bg-emerald-500 text-white text-xs">Paciente</Badge>
+                    )}
+                  </div>
+                  {lead.etapa && (
+                    <Badge className={`${ETAPA_COLORS[lead.etapa] || 'bg-gray-500'} text-white text-xs`}>
+                      {ETAPA_LABELS[lead.etapa] || lead.etapa}
+                    </Badge>
+                  )}
+                </div>
+
+                {lead.telefone && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Phone className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      {lead.telefone.replace('@s.whatsapp.net', '')}
+                    </span>
+                  </div>
+                )}
+
+                {lead.email && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">{lead.email}</span>
+                  </div>
+                )}
+
+                {lead.interesse && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Interesse:</p>
+                    <p className="text-sm">{lead.interesse}</p>
+                  </div>
+                )}
+
+                {lead.origem && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Origem:</p>
+                    <Badge variant="secondary" className="text-xs">{lead.origem}</Badge>
+                  </div>
+                )}
+
+                <div className="border-t my-2" />
+
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      if (lead.id) {
+                        router.push(`/dashboard/leads`)
+                        // Scroll to lead ou abrir dialog
+                      }
+                    }}
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Editar Lead
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Informações do Paciente */}
+          {patient && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4" />
+                  Paciente
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium">{patient.name}</p>
+                  {patient.cpf && (
+                    <p className="text-xs text-muted-foreground">CPF: {patient.cpf}</p>
+                  )}
+                </div>
+
+                {patient.phone && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Phone className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">{patient.phone}</span>
+                  </div>
+                )}
+
+                {patient.email && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">{patient.email}</span>
+                  </div>
+                )}
+
+                {patient.birth_date && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      {format(new Date(patient.birth_date), 'dd/MM/yyyy', { locale: ptBR })}
+                    </span>
+                  </div>
+                )}
+
+                {patient.address && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <MapPin className="h-3 w-3 text-muted-foreground mt-0.5" />
+                    <span className="text-muted-foreground">{patient.address}</span>
+                  </div>
+                )}
+
+                <div className="border-t my-2" />
+
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => router.push(`/dashboard/pacientes/${patient.id}`)}
+                  >
+                    <User className="h-3 w-3 mr-1" />
+                    Ver Paciente
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => router.push(`/dashboard/agendamentos/novo?patientId=${patient.id}`)}
+                  >
+                    <Calendar className="h-3 w-3 mr-1" />
+                    Novo Agendamento
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Mensagens Rápidas com Tópicos */}
+          {onQuickMessage && topics.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Mensagens Rápidas
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => router.push('/dashboard/configuracoes/mensagens-rapidas')}
+                  >
+                    <Edit className="h-3 w-3" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Seletor de Tópicos */}
+                {topics.length > 1 && (
+                  <div className="flex gap-1 flex-wrap">
+                    {topics.map((topic) => {
+                      const TopicIcon = getIconComponent(topic.icon)
+                      const isSelected = selectedTopicId === topic.id
+                      return (
+                        <Button
+                          key={topic.id}
+                          variant={isSelected ? 'default' : 'outline'}
+                          size="sm"
+                          className={`text-xs h-7 px-2 ${isSelected ? '' : 'text-muted-foreground'}`}
+                          onClick={() => setSelectedTopicId(topic.id)}
+                        >
+                          <TopicIcon className="h-3 w-3 mr-1" />
+                          {topic.name}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Mensagens do Tópico Selecionado */}
+                {selectedTopicId && (
+                  <div className="space-y-2">
+                    {loadingMessages ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : quickMessages.length > 0 ? (
+                      quickMessages.map((msg) => {
+                        const MsgIcon = getIconComponent(msg.icon)
+                        return (
+                          <Button
+                            key={msg.id}
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-start text-xs h-auto py-2"
+                            onClick={() => handleQuickMessage(msg.message)}
+                          >
+                            <MsgIcon className="h-3 w-3 mr-2 flex-shrink-0" />
+                            <span className="text-left">{msg.label}</span>
+                          </Button>
+                        )
+                      })
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center py-2">
+                        Nenhuma mensagem neste tópico
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Próximos Agendamentos */}
+          {appointments.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Agendamentos
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {appointments.slice(0, 3).map((appt) => {
+                  const isUpcoming = new Date(`${appt.appointment_date}T${appt.appointment_time}`) > new Date()
+                  const doctorName = (appt.doctors as any)?.name || 'Médico não informado'
+                  
+                  return (
+                    <div
+                      key={appt.id}
+                      className={`p-2 rounded-md border text-xs ${
+                        isUpcoming ? 'bg-blue-50 border-blue-200' : 'bg-muted'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium">
+                          {format(new Date(appt.appointment_date), 'dd/MM/yyyy', { locale: ptBR })}
+                        </span>
+                        {isUpcoming && (
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
+                            Próximo
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground">
+                        {appt.appointment_time?.slice(0, 5)} - {doctorName}
+                      </p>
+                      {appt.status && (
+                        <Badge variant="secondary" className="mt-1 text-xs">
+                          {appt.status}
+                        </Badge>
+                      )}
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Ações Rápidas */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Ações Rápidas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {lead && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs"
+                  onClick={() => router.push('/dashboard/leads/follow-up/novo')}
+                >
+                  <TrendingUp className="h-3 w-3 mr-2" />
+                  Criar Follow-up
+                </Button>
+              )}
+              {lead && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs"
+                  onClick={() => router.push('/dashboard/orcamentos/novo')}
+                >
+                  <Briefcase className="h-3 w-3 mr-2" />
+                  Criar Orçamento
+                </Button>
+              )}
+              {patient && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs"
+                  onClick={() => router.push(`/dashboard/pacientes/${patient.id}/historico`)}
+                >
+                  <FileText className="h-3 w-3 mr-2" />
+                  Ver Histórico
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </ScrollArea>
+    </div>
+  )
+}
+
