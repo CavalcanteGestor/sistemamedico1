@@ -63,34 +63,36 @@ export default function NovoMedicoPage() {
     try {
       setLoading(true)
       
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Usuário não autenticado')
+      // Chamar API para criar médico com login
+      const response = await fetch('/api/doctors/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...data,
+          password: watch('password') || undefined, // Senha opcional (será gerada automaticamente se não fornecida)
+        }),
+      })
 
-      // Formatar WhatsApp phone se fornecido
-      let whatsappPhone = data.whatsapp_phone
-      if (whatsappPhone && !whatsappPhone.includes('@s.whatsapp.net')) {
-        // Remover caracteres não numéricos e adicionar sufixo
-        const cleaned = whatsappPhone.replace(/\D/g, '')
-        if (cleaned.length >= 10) {
-          whatsappPhone = `${cleaned}@s.whatsapp.net`
-        }
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao criar médico')
       }
 
-      // Create doctor
-      const { error } = await supabase
-        .from('doctors')
-        .insert({
-          user_id: user.id,
-          ...data,
-          whatsapp_phone: whatsappPhone || null,
-        })
-
-      if (error) throw error
+      // Mostrar mensagem apropriada baseada em como foi criado
+      let description = 'O médico foi cadastrado no sistema.'
+      if (result.emailSent) {
+        description = 'O médico foi cadastrado com sucesso! Um email foi enviado para ele com um link para definir sua própria senha.'
+      } else if (result.credentials?.password) {
+        description = `O médico foi cadastrado com sucesso!\n\nCredenciais de acesso:\nEmail: ${result.credentials.email}\nSenha: ${result.credentials.password}\n\nO médico deve alterar a senha no primeiro acesso.`
+      }
 
       toast({
         title: 'Médico criado com sucesso!',
-        description: 'O médico foi cadastrado no sistema.',
+        description,
+        duration: result.emailSent ? 8000 : 10000, // Mostrar por mais tempo se tiver credenciais
       })
 
       router.push('/dashboard/medicos')
@@ -175,10 +177,28 @@ export default function NovoMedicoPage() {
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <Input id="email" type="email" {...register('email')} />
+                <p className="text-xs text-muted-foreground">
+                  Será usado como login do médico no sistema
+                </p>
                 {errors.email && (
                   <p className="text-sm text-destructive">{errors.email.message}</p>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha Inicial (opcional - apenas se não quiser enviar email)</Label>
+              <Input 
+                id="password" 
+                type="password" 
+                {...register('password')} 
+                placeholder="Deixe em branco para enviar email de convite"
+              />
+              <p className="text-xs text-muted-foreground">
+                <strong>Recomendado:</strong> Deixe em branco. Um email será enviado para o médico com um link para ele definir sua própria senha.
+                <br />
+                Se você definir uma senha aqui, o médico poderá usar essa senha diretamente, mas não receberá o email de convite.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -220,7 +240,7 @@ export default function NovoMedicoPage() {
                         }
                       }
 
-                      // Enviar mensagem de teste
+                      // Enviar mensagem de teste (não deve ativar atendimento humano)
                       const response = await fetch('/api/whatsapp/send', {
                         method: 'POST',
                         headers: {
@@ -229,16 +249,19 @@ export default function NovoMedicoPage() {
                         body: JSON.stringify({
                           phone: formattedPhone,
                           message: '✅ *Mensagem de Teste*\n\nEste é um teste do sistema de notificações. Se você recebeu esta mensagem, o número está configurado corretamente!',
+                          isTest: true, // Flag para não ativar atendimento humano
                         }),
                       })
 
                       if (!response.ok) {
-                        throw new Error('Erro ao enviar mensagem de teste')
+                        const errorData = await response.json().catch(() => ({}))
+                        throw new Error(errorData.error || 'Erro ao enviar mensagem de teste')
                       }
 
                       toast({
-                        title: 'Mensagem de teste enviada!',
-                        description: 'Verifique o WhatsApp do médico para confirmar o recebimento.',
+                        title: '✅ Mensagem enviada com sucesso!',
+                        description: 'A mensagem de teste foi enviada. O número WhatsApp será salvo quando você criar o médico e poderá ser alterado pelo médico quando ele fizer login.',
+                        duration: 6000, // Mostrar por 6 segundos para dar tempo de ler
                       })
                     } catch (error: any) {
                       toast({

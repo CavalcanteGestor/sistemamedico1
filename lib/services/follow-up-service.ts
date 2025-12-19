@@ -47,6 +47,7 @@ interface GenerateAIMessageParams {
   tipoFollowUp: string
   promptPersonalizado?: string
   metadata?: Record<string, any>
+  templateId?: string
 }
 
 /**
@@ -184,6 +185,7 @@ export async function sendFollowUp(followUpId: string): Promise<void> {
               tipoFollowUp: followUp.tipo_follow_up,
               promptPersonalizado: followUp.prompt_personalizado || undefined,
               sentimentAnalysis,
+              templateId: followUp.template_id || undefined,
             })
           } else {
             // Fallback para método antigo se não conseguir contexto completo
@@ -201,6 +203,7 @@ export async function sendFollowUp(followUpId: string): Promise<void> {
               tipoFollowUp: followUp.tipo_follow_up,
               promptPersonalizado: followUp.prompt_personalizado || undefined,
               metadata,
+              templateId: followUp.template_id || undefined,
             })
           }
         }
@@ -216,6 +219,7 @@ export async function sendFollowUp(followUpId: string): Promise<void> {
             tipoFollowUp: followUp.tipo_follow_up,
             promptPersonalizado: followUp.prompt_personalizado || undefined,
             sentimentAnalysis,
+            templateId: followUp.template_id || undefined,
           })
         } else {
           // Fallback para método antigo
@@ -239,6 +243,7 @@ export async function sendFollowUp(followUpId: string): Promise<void> {
             tipoFollowUp: followUp.tipo_follow_up,
             promptPersonalizado: followUp.prompt_personalizado || undefined,
             metadata,
+            templateId: followUp.template_id || undefined,
           })
         }
       }
@@ -380,6 +385,7 @@ export async function processScheduledFollowUps(): Promise<{
 
   try {
     // 1. Processar follow-ups agendados (não recorrentes) que já passaram da data
+    // Usar lte para pegar todos que já passaram, incluindo os que estão exatamente no horário
     const { data: scheduledFollowUps, error: scheduledError } = await supabase
       .from('follow_ups')
       .select('*')
@@ -387,27 +393,38 @@ export async function processScheduledFollowUps(): Promise<{
       .eq('recorrente', false)
       .not('agendado_para', 'is', null)
       .lte('agendado_para', now.toISOString())
+      .order('agendado_para', { ascending: true })
 
     if (scheduledError) {
-      console.error('Erro ao buscar follow-ups agendados:', scheduledError)
+      console.error('❌ Erro ao buscar follow-ups agendados:', scheduledError)
     } else if (scheduledFollowUps && scheduledFollowUps.length > 0) {
-      console.log(`Processando ${scheduledFollowUps.length} follow-ups agendados...`)
+      console.log(`📅 Processando ${scheduledFollowUps.length} follow-up(s) agendado(s)...`)
       
       for (const followUp of scheduledFollowUps) {
         try {
+          const agendadoPara = new Date(followUp.agendado_para)
+          const diffMinutes = Math.floor((now.getTime() - agendadoPara.getTime()) / (1000 * 60))
+          
+          console.log(`  → Enviando follow-up ${followUp.id} (agendado para ${agendadoPara.toLocaleString('pt-BR')}, ${diffMinutes} min atrás)`)
+          
           await sendFollowUp(followUp.id)
           result.agendados.sent++
+          
+          console.log(`  ✅ Follow-up ${followUp.id} enviado com sucesso`)
         } catch (error: any) {
-          console.error(`Erro ao enviar follow-up agendado ${followUp.id}:`, error)
+          console.error(`  ❌ Erro ao enviar follow-up agendado ${followUp.id}:`, error.message)
           result.agendados.failed++
         }
         
-        // Pequeno delay entre envios
+        // Pequeno delay entre envios para não sobrecarregar
         await new Promise(resolve => setTimeout(resolve, 500))
       }
+    } else {
+      console.log('📅 Nenhum follow-up agendado para processar no momento')
     }
 
     // 2. Processar follow-ups recorrentes que precisam ser executados
+    // Usar lte para pegar todos que já passaram da próxima execução
     const { data: recurringFollowUps, error: recurringError } = await supabase
       .from('follow_ups')
       .select('*')
@@ -415,11 +432,12 @@ export async function processScheduledFollowUps(): Promise<{
       .eq('recorrente', true)
       .not('proxima_execucao', 'is', null)
       .lte('proxima_execucao', now.toISOString())
+      .order('proxima_execucao', { ascending: true })
 
     if (recurringError) {
-      console.error('Erro ao buscar follow-ups recorrentes:', recurringError)
+      console.error('❌ Erro ao buscar follow-ups recorrentes:', recurringError)
     } else if (recurringFollowUps && recurringFollowUps.length > 0) {
-      console.log(`Processando ${recurringFollowUps.length} follow-ups recorrentes...`)
+      console.log(`🔄 Processando ${recurringFollowUps.length} follow-up(s) recorrente(s)...`)
       
       for (const followUp of recurringFollowUps) {
         try {
@@ -435,7 +453,7 @@ export async function processScheduledFollowUps(): Promise<{
 
           if (nextExecution) {
             // Atualizar com próxima execução e voltar status para pendente
-            await supabase
+            const { error: updateError } = await supabase
               .from('follow_ups')
               .update({
                 proxima_execucao: nextExecution.toISOString(),
@@ -444,14 +462,21 @@ export async function processScheduledFollowUps(): Promise<{
               })
               .eq('id', followUp.id)
 
+            if (updateError) {
+              console.error(`  ❌ Erro ao atualizar próxima execução do follow-up ${followUp.id}:`, updateError)
+            } else {
+              console.log(`  ✅ Follow-up recorrente ${followUp.id} enviado. Próxima execução: ${nextExecution.toLocaleString('pt-BR')}`)
+            }
+
             result.recorrentes.nextCreated++
             result.recorrentes.sent++
           } else {
             // Não há mais execuções - manter como enviado (final)
+            console.log(`  ✅ Follow-up recorrente ${followUp.id} enviado (última execução)`)
             result.recorrentes.sent++
           }
         } catch (error: any) {
-          console.error(`Erro ao processar follow-up recorrente ${followUp.id}:`, error)
+          console.error(`  ❌ Erro ao processar follow-up recorrente ${followUp.id}:`, error.message)
           result.recorrentes.failed++
           
           // Em caso de erro, tentar atualizar próxima execução mesmo assim
@@ -481,7 +506,10 @@ export async function processScheduledFollowUps(): Promise<{
       }
     }
 
-    console.log('Processamento de follow-ups agendados e recorrentes concluído:', result)
+    console.log('✅ Processamento concluído:', {
+      agendados: `${result.agendados.sent} enviados, ${result.agendados.failed} falharam`,
+      recorrentes: `${result.recorrentes.sent} enviados, ${result.recorrentes.failed} falharam, ${result.recorrentes.nextCreated} próximos criados`
+    })
     return result
   } catch (error: any) {
     console.error('Erro ao processar follow-ups agendados e recorrentes:', error)
@@ -656,7 +684,7 @@ export async function notifyDoctorAboutAppointment(appointmentId: string): Promi
   const supabase = await createAdminClient()
 
   try {
-    // Buscar agendamento com dados do paciente e médico
+    // Buscar agendamento com dados do paciente e médico (incluindo quem criou)
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
       .select(`
@@ -692,14 +720,39 @@ export async function notifyDoctorAboutAppointment(appointmentId: string): Promi
     const appointmentDate = new Date(appointment.appointment_date).toLocaleDateString('pt-BR')
     const appointmentTime = appointment.appointment_time.substring(0, 5) // HH:mm
     const consultationType = appointment.consultation_type || 'presencial'
+    
+    // Determinar quem criou o agendamento para incluir na mensagem
+    let createdByText = ''
+    if (appointment.created_by_type === 'admin') {
+      createdByText = `\n\n*Agendado por:* ${appointment.created_by_name || 'Administrador'} (Admin)`
+    } else if (appointment.created_by_type === 'secretaria') {
+      createdByText = `\n\n*Agendado por:* ${appointment.created_by_name || 'Secretária'}`
+    } else if (appointment.created_by_type === 'ia') {
+      createdByText = `\n\n*Agendado por:* Assistente Virtual`
+    } else if (appointment.created_by_name) {
+      // Fallback caso tenha nome mas não tenha type
+      createdByText = `\n\n*Agendado por:* ${appointment.created_by_name}`
+    }
 
     // Criar notificação in-app para o médico
     if (doctor.user_id) {
       try {
+        // Incluir quem criou na notificação in-app também
+        let notificationMessage = `Consulta agendada para ${appointmentDate} às ${appointmentTime} com ${patientName}`
+        if (appointment.created_by_type === 'admin') {
+          notificationMessage += ` (Agendado por ${appointment.created_by_name || 'Administrador'})`
+        } else if (appointment.created_by_type === 'secretaria') {
+          notificationMessage += ` (Agendado por ${appointment.created_by_name || 'Secretária'})`
+        } else if (appointment.created_by_type === 'ia') {
+          notificationMessage += ` (Agendado por Assistente Virtual)`
+        } else if (appointment.created_by_name) {
+          notificationMessage += ` (Agendado por ${appointment.created_by_name})`
+        }
+        
         await supabase.from('notifications').insert({
           user_id: doctor.user_id,
           title: 'Novo Agendamento',
-          message: `Consulta agendada para ${appointmentDate} às ${appointmentTime} com ${patientName}`,
+          message: notificationMessage,
           type: 'info',
           link: `/dashboard/agendamentos`,
           read: false,
@@ -725,12 +778,12 @@ export async function notifyDoctorAboutAppointment(appointmentId: string): Promi
           }
         }
 
-        // Mensagem para o médico
+        // Mensagem para o médico (incluindo quem criou o agendamento)
         const message = `👨‍⚕️ *Novo Agendamento*\n\n` +
           `Paciente: ${patientName}\n` +
           `Data: ${appointmentDate}\n` +
           `Horário: ${appointmentTime}\n` +
-          `Tipo: ${consultationType}\n\n` +
+          `Tipo: ${consultationType}${createdByText}\n\n` +
           `Acesse o sistema para mais detalhes.`
 
         await sendWhatsAppMessage({
@@ -762,19 +815,52 @@ export async function generateAIMessage(params: GenerateAIMessageParams): Promis
     throw new Error('OpenAI API Key não configurada')
   }
 
-  // Construir prompt baseado no tipo de follow-up
-  const promptsByType: Record<string, string> = {
-    reativacao: `Crie uma mensagem curta e amigável para reativar um lead que parou de responder. Use linguagem natural e humanizada, como se fosse uma pessoa da clínica enviando WhatsApp. Não use emojis em excesso.`,
-    promocao: `Crie uma mensagem curta sobre uma promoção ou oferta especial. Seja atraente mas não seja insistente. Use linguagem natural de WhatsApp.`,
-    lembrete_consulta: `Crie uma mensagem curta lembrando sobre uma consulta agendada. Seja cordial e profissional, mas com tom amigável. Se houver informações de data, horário ou médico no contexto, inclua-as na mensagem.`,
-    orcamento: `Crie uma mensagem curta perguntando se ficou alguma dúvida sobre o orçamento enviado. Seja prestativo e aberto para responder perguntas.`,
-    pos_consulta: `Crie uma mensagem curta de follow-up pós-consulta/procedimento. Demonstre cuidado e disponibilidade.`,
-    confirmacao: `Crie uma mensagem curta pedindo confirmação de presença para uma consulta. Seja direto mas cordial. Se houver informações de data, horário ou médico no contexto, inclua-as na mensagem.`,
-    reagendamento: `Crie uma mensagem curta oferecendo reagendar uma consulta. Seja compreensivo e flexível.`,
-    oferta: `Crie uma mensagem curta com uma oferta personalizada. Seja atraente mas profissional.`,
+  // Tentar buscar template de IA do banco
+  let basePrompt = ''
+  try {
+    // Se tiver templateId, buscar template específico
+    if (params.templateId) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const supabase = await createAdminClient()
+      const { data: template } = await supabase
+        .from('follow_up_templates')
+        .select('*')
+        .eq('id', params.templateId)
+        .eq('tipo_template', 'ia')
+        .single()
+      
+      if (template && template.ativa) {
+        basePrompt = template.conteudo
+      }
+    }
+    
+    // Se não encontrou template específico, buscar por tipo
+    if (!basePrompt) {
+      const aiTemplates = await getFollowUpTemplates(params.tipoFollowUp, 'ia')
+      
+      if (aiTemplates && aiTemplates.length > 0) {
+        // Usar o primeiro template de IA encontrado
+        basePrompt = aiTemplates[0].conteudo
+      }
+    }
+  } catch (error) {
+    console.warn('Erro ao buscar template de IA, usando padrão:', error)
   }
 
-  const basePrompt = promptsByType[params.tipoFollowUp] || promptsByType.reativacao
+  // Fallback para prompts padrão se não houver template
+  if (!basePrompt) {
+    const promptsByType: Record<string, string> = {
+      reativacao: `Crie uma mensagem curta e amigável para reativar um lead que parou de responder. Use linguagem natural e humanizada, como se fosse uma pessoa da clínica enviando WhatsApp. Não use emojis em excesso.`,
+      promocao: `Crie uma mensagem curta sobre uma promoção ou oferta especial. Seja atraente mas não seja insistente. Use linguagem natural de WhatsApp.`,
+      lembrete_consulta: `Crie uma mensagem curta lembrando sobre uma consulta agendada. Seja cordial e profissional, mas com tom amigável. Se houver informações de data, horário ou médico no contexto, inclua-as na mensagem.`,
+      orcamento: `Crie uma mensagem curta perguntando se ficou alguma dúvida sobre o orçamento enviado. Seja prestativo e aberto para responder perguntas.`,
+      pos_consulta: `Crie uma mensagem curta de follow-up pós-consulta/procedimento. Demonstre cuidado e disponibilidade.`,
+      confirmacao: `Crie uma mensagem curta pedindo confirmação de presença para uma consulta. Seja direto mas cordial. Se houver informações de data, horário ou médico no contexto, inclua-as na mensagem.`,
+      reagendamento: `Crie uma mensagem curta oferecendo reagendar uma consulta. Seja compreensivo e flexível.`,
+      oferta: `Crie uma mensagem curta com uma oferta personalizada. Seja atraente mas profissional.`,
+    }
+    basePrompt = promptsByType[params.tipoFollowUp] || promptsByType.reativacao
+  }
 
   let contextInfo = `
 Nome do lead: ${params.leadNome}
@@ -903,7 +989,10 @@ export async function cancelFollowUp(followUpId: string): Promise<void> {
 /**
  * Busca templates de follow-up
  */
-export async function getFollowUpTemplates(tipoFollowUp?: string): Promise<any[]> {
+export async function getFollowUpTemplates(
+  tipoFollowUp?: string,
+  tipoTemplate?: 'fixo' | 'ia'
+): Promise<any[]> {
   const supabase = createClient()
 
   let query = supabase
@@ -914,6 +1003,10 @@ export async function getFollowUpTemplates(tipoFollowUp?: string): Promise<any[]
 
   if (tipoFollowUp) {
     query = query.eq('tipo_follow_up', tipoFollowUp)
+  }
+
+  if (tipoTemplate) {
+    query = query.eq('tipo_template', tipoTemplate)
   }
 
   const { data, error } = await query

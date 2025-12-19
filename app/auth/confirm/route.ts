@@ -19,10 +19,22 @@ export async function GET(request: NextRequest) {
   // Se houver erro na URL (token expirado, etc), redirecionar para página de erro
   if (errorParam || errorCode) {
     if (!token_hash) {
+      // Traduzir mensagens de erro do Supabase para português
+      let errorMessage = errorDescription || 'Link inválido ou expirado'
+      
+      if (errorDescription) {
+        // Traduções comuns
+        if (errorDescription.includes('invalid') || errorDescription.includes('expired')) {
+          errorMessage = 'Link inválido ou expirado. Solicite um novo link de recuperação.'
+        } else if (errorDescription.includes('redirect')) {
+          errorMessage = 'URL de redirecionamento não permitida. Verifique as configurações do Supabase.'
+        }
+      }
+      
       if (type === 'recovery') {
-        redirect(`/forgot-password?error=expired&message=${encodeURIComponent(errorDescription || 'Link expirado')}`)
+        redirect(`/forgot-password?error=expired&message=${encodeURIComponent(errorMessage)}`)
       } else {
-        redirect(`/login?error=${errorCode || 'invalid_token'}&message=${encodeURIComponent(errorDescription || 'Token inválido ou expirado')}`)
+        redirect(`/login?error=${errorCode || 'invalid_token'}&message=${encodeURIComponent(errorMessage)}`)
       }
       return
     }
@@ -75,10 +87,21 @@ export async function GET(request: NextRequest) {
     } else {
       // Se houver erro ao verificar OTP, redirecionar com mensagem de erro
       if (type === 'recovery') {
+        // Traduzir mensagens de erro para português
+        let errorMessage = error.message
+        
+        if (error.message.includes('expired')) {
+          errorMessage = 'Link expirado. Solicite um novo link de recuperação.'
+        } else if (error.message.includes('invalid')) {
+          errorMessage = 'Link inválido ou expirado. Verifique se está usando o link correto do email.'
+        } else if (error.message.includes('redirect') || error.message.includes('redirect_to')) {
+          errorMessage = 'URL de redirecionamento não permitida. Verifique se localhost:3000 está configurado no Supabase.'
+        }
+        
         if (error.message.includes('expired') || error.message.includes('invalid')) {
-          redirect(`/forgot-password?error=expired&message=${encodeURIComponent('Link expirado. Solicite um novo link de recuperação.')}`)
+          redirect(`/forgot-password?error=expired&message=${encodeURIComponent(errorMessage)}`)
         } else {
-          redirect(`/forgot-password?error=invalid&message=${encodeURIComponent(error.message)}`)
+          redirect(`/forgot-password?error=invalid&message=${encodeURIComponent(errorMessage)}`)
         }
       } else {
         redirect(`/login?error=invalid_token&message=${encodeURIComponent(error.message)}`)

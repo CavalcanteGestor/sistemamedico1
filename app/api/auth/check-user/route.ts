@@ -50,11 +50,15 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle()
 
+    // Verificar se precisa mudar senha
+    const mustChangePassword = user.user_metadata?.must_change_password === true
+
     // Usuário existe - retornar informações
     return NextResponse.json({
       exists: true,
       emailNotConfirmed: !user.email_confirmed_at,
       hasProfile: !!profile,
+      mustChangePassword,
     })
   } catch (error: any) {
     console.error('Erro na API de verificação:', error)

@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, UserPlus, Shield } from 'lucide-react'
 
 const resetPasswordSchema = z.object({
   password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres'),
@@ -34,6 +34,8 @@ function ResetPasswordContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string>('')
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [isFirstTime, setIsFirstTime] = useState(false)
   
   const {
     register,
@@ -52,6 +54,22 @@ function ResetPasswordContent() {
       if (user) {
         setIsAuthenticated(true)
         setError('') // Limpar erro se autenticado
+        
+        // Buscar role do usuário para redirecionamento correto
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle()
+        
+        if (profile?.role) {
+          setUserRole(profile.role)
+          
+          // Verificar se é primeira vez (usuário sem senha definida ou metadata indica)
+          if (user.user_metadata?.must_change_password || !user.email_confirmed_at) {
+            setIsFirstTime(true)
+          }
+        }
       } else {
         setIsAuthenticated(false)
         const token = searchParams?.get('token_hash')
@@ -84,13 +102,25 @@ function ResetPasswordContent() {
       if (updateError) throw updateError
 
       toast({
-        title: 'Senha redefinida com sucesso!',
-        description: 'Sua senha foi atualizada. Redirecionando para o login...',
+        title: 'Senha definida com sucesso!',
+        description: isFirstTime 
+          ? 'Bem-vindo ao sistema! Redirecionando...'
+          : 'Sua senha foi atualizada. Redirecionando...',
       })
 
-      // Aguardar um pouco e redirecionar
+      // Aguardar um pouco e redirecionar baseado no role
       await new Promise(resolve => setTimeout(resolve, 1500))
-      router.push('/login')
+      
+      // Redirecionar baseado no role do usuário
+      if (userRole === 'medico') {
+        router.push('/dashboard/medico')
+      } else if (userRole === 'admin' || userRole === 'desenvolvedor') {
+        router.push('/dashboard')
+      } else if (userRole === 'recepcionista') {
+        router.push('/dashboard')
+      } else {
+        router.push('/login')
+      }
       router.refresh()
     } catch (error: any) {
       setError(error.message || 'Erro ao redefinir senha. Tente novamente.')
@@ -159,9 +189,25 @@ function ResetPasswordContent() {
     <div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Redefinir Senha</CardTitle>
-          <CardDescription>
-            Digite sua nova senha abaixo
+          <div className="flex items-center justify-center mb-2">
+            {isFirstTime ? (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                <UserPlus className="h-8 w-8 text-white" />
+              </div>
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
+                <Shield className="h-8 w-8 text-white" />
+              </div>
+            )}
+          </div>
+          <CardTitle className="text-2xl text-center">
+            {isFirstTime ? 'Bem-vindo ao Sistema!' : 'Redefinir Senha'}
+          </CardTitle>
+          <CardDescription className="text-center">
+            {isFirstTime 
+              ? 'Defina sua senha para começar a usar o sistema'
+              : 'Digite sua nova senha abaixo'
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -232,7 +278,10 @@ function ResetPasswordContent() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Redefinindo...' : 'Redefinir Senha'}
+              {loading 
+                ? (isFirstTime ? 'Configurando...' : 'Redefinindo...')
+                : (isFirstTime ? 'Definir Senha e Entrar' : 'Redefinir Senha')
+              }
             </Button>
 
             <div className="text-center text-sm text-muted-foreground">

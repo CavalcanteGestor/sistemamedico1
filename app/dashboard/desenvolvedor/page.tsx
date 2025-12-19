@@ -23,6 +23,21 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/hooks/use-toast'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Plus, Trash2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 /**
  * Dashboard específico para Desenvolvedor
@@ -88,8 +103,8 @@ export default function DesenvolvedorDashboardPage() {
       setStats({
         totalUsers: usersRes.count || 0,
         activeSessions: sessionsRes.data?.length || 0,
-        systemHealth: 'healthy', // TODO: Implementar verificação real
-        recentErrors: 0, // TODO: Implementar log de erros
+        systemHealth: 'healthy',
+        recentErrors: 0,
       })
 
       setSystemInfo({
@@ -230,6 +245,12 @@ export default function DesenvolvedorDashboardPage() {
         </Card>
       )}
 
+      {/* Criar Médico Básico - Desenvolvedor */}
+      <DoctorQuickCreateCard />
+
+      {/* Ferramentas Administrativas */}
+      <AdminToolsCard />
+
       {/* Acesso Rápido - Ferramentas de Desenvolvimento */}
       <Card>
         <CardHeader>
@@ -242,6 +263,12 @@ export default function DesenvolvedorDashboardPage() {
               <Button variant="default" className="w-full">
                 <Users className="h-4 w-4 mr-2" />
                 Gerenciar Usuários
+              </Button>
+            </Link>
+            <Link href="/dashboard/medicos">
+              <Button variant="outline" className="w-full">
+                <Users className="h-4 w-4 mr-2" />
+                Gerenciar Médicos
               </Button>
             </Link>
             <Link href="/dashboard/configuracoes">
@@ -343,6 +370,236 @@ export default function DesenvolvedorDashboardPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+/**
+ * Componente para ferramentas administrativas perigosas
+ */
+function AdminToolsCard() {
+  const { toast } = useToast()
+  const router = useRouter()
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDeleteAllDoctors = async () => {
+    try {
+      setDeleting(true)
+
+      const response = await fetch('/api/admin/doctors/delete-all', {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao excluir médicos')
+      }
+
+      toast({
+        title: 'Médicos excluídos com sucesso!',
+        description: `Todos os médicos foram excluídos. ${result.deletedUsers || 0} usuários também foram removidos.`,
+      })
+
+      // Recarregar página para atualizar estatísticas
+      router.refresh()
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir médicos',
+        description: error.message || 'Não foi possível excluir os médicos.',
+        variant: 'destructive',
+      })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <Card className="border-red-200 bg-red-50/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-red-700">
+          <AlertTriangle className="h-5 w-5" />
+          Ferramentas Administrativas
+        </CardTitle>
+        <CardDescription className="text-red-600">
+          Ações perigosas - Use com cuidado
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button 
+              variant="destructive" 
+              className="w-full"
+              disabled={deleting}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {deleting ? 'Excluindo...' : 'Excluir TODOS os Médicos'}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-red-600">
+                ⚠️ Atenção! Esta ação é irreversível!
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>
+                  Você está prestes a excluir <strong>TODOS</strong> os médicos do sistema.
+                </p>
+                <p className="font-semibold">
+                  Esta ação irá:
+                </p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Excluir todos os registros de médicos</li>
+                  <li>Excluir os usuários (login) associados aos médicos</li>
+                  <li>Remover os profiles dos médicos</li>
+                </ul>
+                <p className="text-red-600 font-semibold mt-4">
+                  ⚠️ Se houver agendamentos, esta operação será bloqueada. Exclua os agendamentos primeiro.
+                </p>
+                <p>
+                  Tem certeza que deseja continuar?
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteAllDoctors}
+                className="bg-red-600 hover:bg-red-700"
+                disabled={deleting}
+              >
+                {deleting ? 'Excluindo...' : 'Sim, excluir todos'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <p className="text-xs text-muted-foreground mt-4">
+          <strong>Nota:</strong> Esta ação é permanente e não pode ser desfeita. 
+          Use apenas quando quiser começar do zero.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Componente para criação rápida de médico (apenas campos básicos)
+ */
+function DoctorQuickCreateCard() {
+  const { toast } = useToast()
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    crm: '',
+    email: '',
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setLoading(true)
+
+      const response = await fetch('/api/doctors/create-basic', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao criar médico')
+      }
+
+      toast({
+        title: 'Médico básico criado com sucesso!',
+        description: 'O admin pode completar as informações e criar login depois.',
+      })
+
+      // Limpar formulário
+      setFormData({ name: '', crm: '', email: '' })
+
+      // Redirecionar para lista de médicos
+      router.push('/dashboard/medicos')
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao criar médico',
+        description: error.message || 'Não foi possível criar o médico básico.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card className="border-purple-200 bg-purple-50/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Plus className="h-5 w-5 text-purple-600" />
+          Criar Médico Básico (Rápido)
+        </CardTitle>
+        <CardDescription>
+          Crie um médico com informações básicas. O administrador pode completar os dados e criar login depois.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="dev-doctor-name">Nome Completo *</Label>
+              <Input
+                id="dev-doctor-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Dr. João Silva"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dev-doctor-crm">CRM *</Label>
+              <Input
+                id="dev-doctor-crm"
+                value={formData.crm}
+                onChange={(e) => setFormData({ ...formData, crm: e.target.value })}
+                placeholder="CRM 123456"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dev-doctor-email">Email *</Label>
+              <Input
+                id="dev-doctor-email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="medico@exemplo.com"
+                required
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={loading} className="bg-purple-600 hover:bg-purple-700">
+              <Plus className="h-4 w-4 mr-2" />
+              {loading ? 'Criando...' : 'Criar Médico Básico'}
+            </Button>
+            <Link href="/dashboard/medicos/novo">
+              <Button type="button" variant="outline">
+                Criar Médico Completo
+              </Button>
+            </Link>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            <strong>Nota:</strong> Médicos criados aqui não terão login inicialmente. 
+            O administrador deve completar as informações (telefone, especialidade, WhatsApp) 
+            e criar o login na página de detalhes do médico ou ao usar "Novo Médico" completo.
+          </p>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
 

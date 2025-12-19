@@ -8,6 +8,29 @@ export default async function Home() {
   } = await supabase.auth.getUser()
 
   if (user) {
+    // Verificar se o usuário precisa definir senha (recovery flow)
+    const mustChangePassword = user.user_metadata?.must_change_password === true
+    
+    if (mustChangePassword) {
+      // Buscar role para redirecionar para a página correta
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const role = profile?.role || 'paciente'
+
+      // Médicos devem ir para a página específica de definir senha
+      if (role === 'medico') {
+        redirect('/medico/definir-senha')
+      } else {
+        // Outros usuários vão para reset-password padrão
+        redirect('/reset-password')
+      }
+      return
+    }
+
     // Buscar role para redirecionar corretamente
     const { data: profile } = await supabase
       .from('profiles')

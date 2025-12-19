@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -66,8 +67,10 @@ export function CreateFollowUpDialog({
 
   // Carregar templates quando mudar o tipo
   useEffect(() => {
-    if (tipoFollowUp && tipoMensagem === 'fixo') {
+    if (tipoFollowUp && tipoMensagem) {
       loadTemplates()
+    } else {
+      setTemplates([])
     }
   }, [tipoFollowUp, tipoMensagem])
 
@@ -88,11 +91,22 @@ export function CreateFollowUpDialog({
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch(`/api/follow-up/templates?tipoFollowUp=${tipoFollowUp}`)
-      const data = await response.json()
-      
-      if (data.success) {
-        setTemplates(data.data)
+      // Carregar templates fixos quando tipo de mensagem for 'fixo'
+      if (tipoMensagem === 'fixo') {
+        const response = await fetch(`/api/follow-up/templates?tipoFollowUp=${tipoFollowUp}&tipoTemplate=fixo`)
+        const data = await response.json()
+        if (data.success) {
+          setTemplates(data.data)
+        }
+      } else if (tipoMensagem === 'ia') {
+        // Carregar templates de IA quando tipo de mensagem for 'ia'
+        const response = await fetch(`/api/follow-up/templates?tipoFollowUp=${tipoFollowUp}&tipoTemplate=ia`)
+        const data = await response.json()
+        if (data.success) {
+          setTemplates(data.data)
+        }
+      } else {
+        setTemplates([])
       }
     } catch (error) {
       console.error('Erro ao carregar templates:', error)
@@ -116,11 +130,36 @@ export function CreateFollowUpDialog({
       // Para múltiplos leads, gera para o primeiro como exemplo
       const lead = selectedLeads[0]
       
+      // Buscar contexto completo do lead do banco
+      let leadContexto = lead.contexto || ''
+      if (lead.id) {
+        try {
+          const supabase = createClient()
+          const { data: leadCompleto } = await supabase
+            .from('leads')
+            .select('contexto, interesse, origem, etapa, status')
+            .eq('id', lead.id)
+            .single()
+
+          if (leadCompleto) {
+            const partesContexto = []
+            if (leadCompleto.contexto) partesContexto.push(leadCompleto.contexto)
+            if (leadCompleto.interesse) partesContexto.push(`Interesse: ${leadCompleto.interesse}`)
+            if (leadCompleto.origem) partesContexto.push(`Origem: ${leadCompleto.origem}`)
+            if (leadCompleto.etapa) partesContexto.push(`Etapa: ${leadCompleto.etapa}`)
+            
+            leadContexto = partesContexto.join('. ') || 'Sem contexto disponível'
+          }
+        } catch (error) {
+          console.error('Erro ao buscar contexto do lead:', error)
+        }
+      }
+      
       const response = await fetch('/api/follow-up/generate-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadContexto: lead.contexto || 'Sem contexto disponível',
+          leadContexto: leadContexto || 'Sem contexto disponível',
           leadNome: lead.nome,
           tipoFollowUp,
         }),
@@ -316,22 +355,39 @@ export function CreateFollowUpDialog({
             </Select>
           </div>
 
-          {/* Template (se fixo) */}
-          {tipoMensagem === 'fixo' && templates.length > 0 && (
+          {/* Template (para mensagem fixa ou IA) */}
+          {((tipoMensagem === 'fixo' || tipoMensagem === 'ia') && templates.length > 0) && (
             <div>
-              <Label htmlFor="template">Template</Label>
+              <Label htmlFor="template">
+                {tipoMensagem === 'ia' ? 'Template de Prompt (Opcional)' : 'Template'}
+              </Label>
               <Select value={templateId} onValueChange={handleTemplateChange}>
                 <SelectTrigger id="template">
-                  <SelectValue placeholder="Selecione um template" />
+                  <SelectValue placeholder={
+                    tipoMensagem === 'ia' 
+                      ? "Selecione um prompt template (ou deixe vazio para usar padrão)"
+                      : "Selecione um template"
+                  } />
                 </SelectTrigger>
                 <SelectContent>
                   {templates.map((template) => (
                     <SelectItem key={template.id} value={template.id}>
                       {template.nome}
+                      {template.descricao && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          - {template.descricao}
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {tipoMensagem === 'ia' && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Se selecionar um template de prompt, ele será usado como base para a IA gerar a mensagem.
+                  Se não selecionar, será usado o prompt padrão do sistema.
+                </p>
+              )}
             </div>
           )}
 

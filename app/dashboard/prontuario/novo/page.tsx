@@ -40,16 +40,16 @@ function NovoProntuarioContent() {
 
   const loadData = async () => {
     try {
-      const [patientsRes, doctorsRes] = await Promise.all([
+      const { getAvailableDoctors } = await import('@/lib/utils/doctor-helpers')
+      const [patientsRes, doctorsData] = await Promise.all([
         supabase.from('patients').select('id, name').order('name'),
-        supabase.from('doctors').select('id, name, crm').eq('active', true).order('name'),
+        getAvailableDoctors(supabase, { active: true }),
       ])
 
       if (patientsRes.error) throw patientsRes.error
-      if (doctorsRes.error) throw doctorsRes.error
 
       setPatients(patientsRes.data || [])
-      setDoctors(doctorsRes.data || [])
+      setDoctors(doctorsData.map(d => ({ id: d.id, name: d.name, crm: d.crm })))
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
     }

@@ -65,11 +65,24 @@ function NovoAgendamentoContent() {
 
   const loadData = async () => {
     try {
-      const [patientsRes, doctorsRes, roomsRes] = await Promise.all([
+      // Importar função helper para buscar médicos disponíveis
+      const { getAvailableDoctors } = await import('@/lib/utils/doctor-helpers')
+      
+      const [patientsRes, doctorsData, roomsRes] = await Promise.all([
         supabase.from('patients').select('id, name').order('name'),
-        supabase.from('doctors').select('id, name, crm').eq('active', true).order('name'),
+        getAvailableDoctors(supabase, { active: true }),
         supabase.from('clinic_rooms').select('id, name, description').eq('active', true).order('name'),
       ])
+      
+      // Formatar médicos para o formato esperado
+      const doctorsRes = {
+        data: doctorsData.map(d => ({
+          id: d.id,
+          name: d.name,
+          crm: d.crm,
+        })),
+        error: null,
+      }
 
       if (patientsRes.error) throw patientsRes.error
       if (doctorsRes.error) throw doctorsRes.error
@@ -127,8 +140,63 @@ function NovoAgendamentoContent() {
         }
       }
 
-      // Criar agendamento
-      const { data: appointment, error } = await supabase
+      // Buscar informações do usuário atual para rastreamento
+      const { data: { user } } = await supabase.auth.getUser()
+      let createdByUser = null
+      let createdByRole = null
+      let createdByName = null
+      let createdByType = 'secretaria' // padrão
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, name')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          createdByUser = user.id
+          createdByRole = profile.role
+          createdByName = profile.name
+          
+          // Determinar tipo baseado no role
+          if (profile.role === 'admin') {
+            createdByType = 'admin'
+          } else if (profile.role === 'recepcionista') {
+            createdByType = 'secretaria'
+          }
+        }
+      }
+
+      // Criar agendamento (tentar com campos de rastreamento primeiro)
+      let appointment: any = null
+      let error: any = null
+
+      // Tentar inserir com campos de rastreamento (se a migração foi aplicada)
+      const appointmentData: any = {
+        ...data,
+        room_id: data.room_id || null,
+        status: 'scheduled',
+      }
+
+      // Adicionar campos de rastreamento se houver informações
+      if (createdByUser || createdByRole || createdByName || createdByType) {
+        appointmentData.created_by_user_id = createdByUser
+        appointmentData.created_by_role = createdByRole
+        appointmentData.created_by_name = createdByName
+        appointmentData.created_by_type = createdByType
+      }
+
+      const result = await supabase
+        .from('appointments')
+        .insert(appointmentData)
+        .select()
+        .single()
+
+      // Se der erro de coluna não encontrada, tentar novamente sem os campos de rastreamento
+      if (result.error && result.error.message?.includes("created_by")) {
+        console.warn('Campos de rastreamento não encontrados, criando agendamento sem eles. Aplique a migração 031.')
+        const retryResult = await supabase
         .from('appointments')
         .insert({
           ...data,
@@ -137,6 +205,13 @@ function NovoAgendamentoContent() {
         })
         .select()
         .single()
+        
+        appointment = retryResult.data
+        error = retryResult.error
+      } else {
+        appointment = result.data
+        error = result.error
+      }
 
       if (error) throw error
 

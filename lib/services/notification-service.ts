@@ -134,11 +134,13 @@ export async function createTelemedicineNotification(sessionId: string) {
         patients:patient_id (
           id,
           name,
-          user_id
+          user_id,
+          login_token
         ),
         doctors:doctor_id (
           id,
-          name
+          name,
+          user_id
         )
       )
     `)
@@ -150,21 +152,60 @@ export async function createTelemedicineNotification(sessionId: string) {
   }
 
   const appointment = session.appointments as any
-  if (!appointment || !appointment.patients?.user_id) {
-    throw new Error('Dados do paciente não encontrados')
+  if (!appointment) {
+    throw new Error('Dados do agendamento não encontrados')
   }
 
   const appointmentDate = new Date(`${appointment.appointment_date}T${appointment.appointment_time}`)
   const doctorName = appointment.doctors?.name || 'seu médico'
+  const patientName = appointment.patients?.name || 'o paciente'
 
-  // Criar notificação para o paciente
-  await createNotification({
-    userId: appointment.patients.user_id,
-    title: 'Consulta de Telemedicina Disponível',
-    message: `Sua consulta de telemedicina com Dr(a). ${doctorName} está disponível. Clique para entrar na consulta.`,
-    type: 'success',
-    link: `/portal/consultas/telemedicina/${appointment.id}`,
-  })
+  // Gerar link para o paciente (com token se disponível, caso contrário link normal)
+  let patientLink = `/portal/consultas/telemedicina/${appointment.id}`
+  if (appointment.patients?.login_token) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    patientLink = `${appUrl}/telemedicina/${appointment.id}/${appointment.patients.login_token}`
+  }
+
+  // Criar notificação para o paciente (se tiver user_id)
+  if (appointment.patients?.user_id) {
+    await createNotification({
+      userId: appointment.patients.user_id,
+      title: 'Consulta de Telemedicina Disponível',
+      message: `Sua consulta de telemedicina com Dr(a). ${doctorName} está disponível. Clique para entrar na consulta.`,
+      type: 'success',
+      link: patientLink,
+    })
+  }
+
+  // Criar notificação para o médico da consulta
+  if (appointment.doctors?.user_id) {
+    await createNotification({
+      userId: appointment.doctors.user_id,
+      title: 'Consulta de Telemedicina Disponível',
+      message: `A consulta de telemedicina com ${patientName} está disponível. Clique para entrar na consulta.`,
+      type: 'success',
+      link: `/dashboard/consultas/telemedicina/${appointment.id}`,
+    })
+  }
+
+  // Buscar todos os admins e enviar notificação
+  const { data: adminProfiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('role', ['admin', 'desenvolvedor'])
+
+  if (adminProfiles && adminProfiles.length > 0) {
+    for (const adminProfile of adminProfiles) {
+      await createNotification({
+        userId: adminProfile.id,
+        title: 'Consulta de Telemedicina Disponível',
+        message: `A consulta de telemedicina entre Dr(a). ${doctorName} e ${patientName} está disponível.`,
+        type: 'info',
+        link: `/dashboard/telemedicina`,
+      })
+    }
+  }
 }
 
 export async function createTelemedicineReminder(appointmentId: string) {
@@ -178,7 +219,8 @@ export async function createTelemedicineReminder(appointmentId: string) {
       patients:patient_id (
         id,
         name,
-        user_id
+        user_id,
+        login_token
       ),
       doctors:doctor_id (
         id,
@@ -207,15 +249,54 @@ export async function createTelemedicineReminder(appointmentId: string) {
     return // Não criar lembrete fora da janela de tempo
   }
 
+  const doctorName = appointment.doctors?.name || 'seu médico'
+  const patientName = appointment.patients?.name || 'o paciente'
+
+  // Gerar link para o paciente (com token se disponível)
+  let patientLink = `/portal/consultas/telemedicina/${appointmentId}`
+  if (appointment.patients?.login_token) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    patientLink = `${appUrl}/telemedicina/${appointmentId}/${appointment.patients.login_token}`
+  }
+
   // Criar notificação para o paciente
   if (appointment.patients?.user_id) {
     await createNotification({
       userId: appointment.patients.user_id,
       title: 'Lembrete: Consulta de Telemedicina',
-      message: `Sua consulta de telemedicina com Dr(a). ${appointment.doctors?.name} está agendada para ${appointmentDate.toLocaleDateString('pt-BR')} às ${appointment.appointment_time}. Você pode entrar na consulta agora.`,
+      message: `Sua consulta de telemedicina com Dr(a). ${doctorName} está agendada para ${appointmentDate.toLocaleDateString('pt-BR')} às ${appointment.appointment_time}. Você pode entrar na consulta agora.`,
       type: 'info',
-      link: `/portal/consultas/telemedicina/${appointmentId}`,
+      link: patientLink,
     })
+  }
+
+  // Criar notificação para o médico da consulta
+  if (appointment.doctors?.user_id) {
+    await createNotification({
+      userId: appointment.doctors.user_id,
+      title: 'Lembrete: Consulta de Telemedicina',
+      message: `Você tem uma consulta de telemedicina com ${patientName} agendada para ${appointmentDate.toLocaleDateString('pt-BR')} às ${appointment.appointment_time}.`,
+      type: 'info',
+      link: `/dashboard/consultas/telemedicina/${appointmentId}`,
+    })
+  }
+
+  // Buscar todos os admins e enviar notificação
+  const { data: adminProfiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('role', ['admin', 'desenvolvedor'])
+
+  if (adminProfiles && adminProfiles.length > 0) {
+    for (const adminProfile of adminProfiles) {
+      await createNotification({
+        userId: adminProfile.id,
+        title: 'Lembrete: Consulta de Telemedicina',
+        message: `Consulta de telemedicina entre Dr(a). ${doctorName} e ${patientName} em ${appointmentDate.toLocaleDateString('pt-BR')} às ${appointment.appointment_time}.`,
+        type: 'info',
+        link: `/dashboard/telemedicina`,
+      })
+    }
   }
 }
 

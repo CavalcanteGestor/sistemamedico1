@@ -6,6 +6,7 @@ export const doctorSchema = z.object({
   specialty_id: z.string().min(1, 'Especialidade é obrigatória'),
   phone: z.string().min(10, 'Telefone inválido'),
   email: z.string().email('Email inválido'),
+  password: z.string().optional(), // Senha opcional - será gerada se não fornecida
   whatsapp_phone: z.string().optional().refine(
     (val) => !val || val.includes('@s.whatsapp.net') || /^\d{10,15}$/.test(val.replace(/\D/g, '')),
     'Telefone WhatsApp inválido. Use o formato: 5599999999@s.whatsapp.net ou apenas números'

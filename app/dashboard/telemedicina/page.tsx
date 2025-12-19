@@ -143,13 +143,9 @@ export default function TelemedicinaPage() {
   }
 
   const loadDoctorsForFilter = async () => {
-    const { data } = await supabase
-      .from('doctors')
-      .select('id, name, crm')
-      .eq('active', true)
-      .order('name')
-
-    setAvailableDoctors(data || [])
+    const { getAvailableDoctors } = await import('@/lib/utils/doctor-helpers')
+    const doctors = await getAvailableDoctors(supabase, { active: true })
+    setAvailableDoctors(doctors.map(d => ({ id: d.id, name: d.name, crm: d.crm })))
   }
 
   const loadSessions = async () => {

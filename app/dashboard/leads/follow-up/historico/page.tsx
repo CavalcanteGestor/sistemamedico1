@@ -43,6 +43,7 @@ import {
   Repeat,
   ArrowLeft,
   MessageSquare,
+  RefreshCw,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -202,6 +203,80 @@ export default function FollowUpHistoricoPage() {
     }
   }
 
+  const handleSendNow = async (followUpId: string) => {
+    try {
+      const response = await fetch('/api/follow-up/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ followUpId }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        toast({
+          title: 'Sucesso',
+          description: 'Follow-up enviado com sucesso!',
+        })
+        loadFollowUps()
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível enviar o follow-up',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleRetry = async (followUpId: string) => {
+    try {
+      // Primeiro, atualizar status para pendente
+      const { error: updateError } = await supabase
+        .from('follow_ups')
+        .update({ status: 'pendente' })
+        .eq('id', followUpId)
+
+      if (updateError) throw updateError
+
+      // Depois, tentar enviar
+      await handleSendNow(followUpId)
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível tentar novamente',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleProcessScheduled = async () => {
+    try {
+      const response = await fetch('/api/follow-up/process-scheduled', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        toast({
+          title: 'Sucesso',
+          description: `Processados: ${result.data.agendados.sent} agendados, ${result.data.recorrentes.sent} recorrentes`,
+        })
+        loadFollowUps()
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível processar follow-ups agendados',
+        variant: 'destructive',
+      })
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pendente
     const Icon = config.icon
@@ -223,10 +298,20 @@ export default function FollowUpHistoricoPage() {
             Visualize e gerencie todos os follow-ups criados
           </p>
         </div>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="default" 
+            onClick={handleProcessScheduled}
+            title="Processar follow-ups agendados agora"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Processar Agendados
+          </Button>
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -387,16 +472,38 @@ export default function FollowUpHistoricoPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setSelectedFollowUp(followUp)}
+                            title="Ver detalhes"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
                           {followUp.status === 'pendente' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleSendNow(followUp.id)}
+                                title="Enviar agora"
+                              >
+                                <Send className="h-4 w-4 text-blue-500" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleCancel(followUp.id)}
+                                title="Cancelar"
+                              >
+                                <X className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </>
+                          )}
+                          {followUp.status === 'falhou' && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleCancel(followUp.id)}
+                              onClick={() => handleRetry(followUp.id)}
+                              title="Tentar novamente"
                             >
-                              <X className="h-4 w-4 text-red-500" />
+                              <Repeat className="h-4 w-4 text-orange-500" />
                             </Button>
                           )}
                         </div>
@@ -463,11 +570,19 @@ export default function FollowUpHistoricoPage() {
                 {selectedFollowUp.agendado_para && (
                   <div>
                     <Label>Agendado para</Label>
-                    <p className="text-sm">
-                      {format(new Date(selectedFollowUp.agendado_para), 'dd/MM/yyyy HH:mm', {
-                        locale: ptBR,
-                      })}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm">
+                        {format(new Date(selectedFollowUp.agendado_para), 'dd/MM/yyyy HH:mm', {
+                          locale: ptBR,
+                        })}
+                      </p>
+                      {selectedFollowUp.status === 'pendente' && 
+                       new Date(selectedFollowUp.agendado_para) <= new Date() && (
+                        <Badge variant="destructive" className="text-xs">
+                          Atrasado
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 )}
                 {selectedFollowUp.recorrente && (
@@ -518,6 +633,40 @@ export default function FollowUpHistoricoPage() {
                   </p>
                 </div>
               )}
+
+              {/* Ações no modal */}
+              <div className="flex gap-2 pt-4 border-t">
+                {selectedFollowUp.status === 'pendente' && (
+                  <Button onClick={() => {
+                    handleSendNow(selectedFollowUp.id)
+                    setSelectedFollowUp(null)
+                  }}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Enviar Agora
+                  </Button>
+                )}
+                {selectedFollowUp.status === 'falhou' && (
+                  <Button onClick={() => {
+                    handleRetry(selectedFollowUp.id)
+                    setSelectedFollowUp(null)
+                  }}>
+                    <Repeat className="h-4 w-4 mr-2" />
+                    Tentar Novamente
+                  </Button>
+                )}
+                {selectedFollowUp.status === 'pendente' && (
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => {
+                      handleCancel(selectedFollowUp.id)
+                      setSelectedFollowUp(null)
+                    }}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancelar
+                  </Button>
+                )}
+              </div>
 
               {selectedFollowUp.resposta_recebida && selectedFollowUp.resposta_em && (
                 <div className="bg-green-50 dark:bg-green-950 p-3 rounded-md">

@@ -23,6 +23,7 @@ import {
   Filter,
   Clock,
   User,
+  UserPlus,
   Stethoscope,
   ArrowRight,
   FileText,
@@ -93,12 +94,9 @@ export default function AgendamentosPage() {
   
   const loadDoctors = async () => {
     try {
-      const { data } = await supabase
-        .from('doctors')
-        .select('id, name')
-        .eq('active', true)
-        .order('name')
-      setAllDoctors(data || [])
+      const { getAvailableDoctors } = await import('@/lib/utils/doctor-helpers')
+      const doctors = await getAvailableDoctors(supabase, { active: true })
+      setAllDoctors(doctors.map(d => ({ id: d.id, name: d.name })))
     } catch (error) {
       console.error('Erro ao carregar médicos:', error)
     }
@@ -142,6 +140,7 @@ export default function AgendamentosPage() {
             crm
           )
         `)
+        // Incluir campos de rastreamento de quem criou (já estão na tabela appointments)
 
       // Se for médico, filtrar apenas seus agendamentos
       if (doctorId) {
@@ -636,6 +635,16 @@ export default function AgendamentosPage() {
                                   {appointment.doctors?.name || 'Médico não informado'}
                                 </p>
                               </div>
+                              {appointment.created_by_name && (
+                                <div className="flex items-center gap-2">
+                                  <UserPlus className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  <p className="text-xs text-muted-foreground">
+                                    Agendado por: {appointment.created_by_name}
+                                    {appointment.created_by_type === 'admin' && ' (Admin)'}
+                                    {appointment.created_by_type === 'ia' && ' (Assistente Virtual)'}
+                                  </p>
+                                </div>
+                              )}
                               {appointment.notes && (
                                 <p className="text-xs text-muted-foreground line-clamp-1">
                                   {appointment.notes}
@@ -765,6 +774,16 @@ export default function AgendamentosPage() {
                                 {appointment.doctors?.name || 'Médico não informado'}
                               </p>
                             </div>
+                            {appointment.created_by_name && (
+                              <div className="flex items-center gap-2">
+                                <UserPlus className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <p className="text-xs text-muted-foreground">
+                                  Agendado por: {appointment.created_by_name}
+                                  {appointment.created_by_type === 'admin' && ' (Admin)'}
+                                  {appointment.created_by_type === 'ia' && ' (Assistente Virtual)'}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </Link>

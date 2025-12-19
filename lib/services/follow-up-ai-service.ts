@@ -253,6 +253,7 @@ export async function generateAdvancedAIMessage(params: {
   tipoFollowUp: string
   promptPersonalizado?: string
   sentimentAnalysis?: SentimentAnalysis
+  templateId?: string
 }): Promise<string> {
   if (!OPENAI_API_KEY) {
     throw new Error('OpenAI API Key não configurada')
@@ -262,18 +263,54 @@ export async function generateAdvancedAIMessage(params: {
 
   const historicoTexto = params.leadContext.historicoConversas.slice(-3).join('\n')
   
-  const promptsByType: Record<string, string> = {
-    reativacao: `Crie uma mensagem curta e amigável para reativar um lead que parou de responder. Seja natural e humanizada.`,
-    promocao: `Crie uma mensagem curta sobre uma promoção ou oferta especial. Seja atraente mas não insistente.`,
-    lembrete_consulta: `Crie uma mensagem curta lembrando sobre uma consulta agendada. Seja cordial e profissional.`,
-    orcamento: `Crie uma mensagem curta perguntando se ficou alguma dúvida sobre o orçamento enviado. Seja prestativo.`,
-    pos_consulta: `Crie uma mensagem curta de follow-up pós-consulta/procedimento. Demonstre cuidado e disponibilidade.`,
-    confirmacao: `Crie uma mensagem curta pedindo confirmação de presença para uma consulta. Seja direto mas cordial.`,
-    reagendamento: `Crie uma mensagem curta oferecendo reagendar uma consulta. Seja compreensivo e flexível.`,
-    oferta: `Crie uma mensagem curta com uma oferta personalizada. Seja atraente mas profissional.`,
+  // Tentar buscar template de IA do banco
+  let basePrompt = ''
+  try {
+    const { getFollowUpTemplates } = await import('./follow-up-service')
+    
+    // Se tiver templateId, buscar template específico
+    if (params.templateId) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const supabase = await createAdminClient()
+      const { data: template } = await supabase
+        .from('follow_up_templates')
+        .select('*')
+        .eq('id', params.templateId)
+        .eq('tipo_template', 'ia')
+        .single()
+      
+      if (template && template.ativa) {
+        basePrompt = template.conteudo
+      }
+    }
+    
+    // Se não encontrou template específico, buscar por tipo
+    if (!basePrompt) {
+      const aiTemplates = await getFollowUpTemplates(params.tipoFollowUp, 'ia')
+      
+      if (aiTemplates && aiTemplates.length > 0) {
+        // Usar o primeiro template de IA encontrado
+        basePrompt = aiTemplates[0].conteudo
+      }
+    }
+  } catch (error) {
+    console.warn('Erro ao buscar template de IA, usando padrão:', error)
   }
 
-  const basePrompt = promptsByType[params.tipoFollowUp] || promptsByType.reativacao
+  // Fallback para prompts padrão se não houver template
+  if (!basePrompt) {
+    const promptsByType: Record<string, string> = {
+      reativacao: `Crie uma mensagem curta e amigável para reativar um lead que parou de responder. Seja natural e humanizada.`,
+      promocao: `Crie uma mensagem curta sobre uma promoção ou oferta especial. Seja atraente mas não insistente.`,
+      lembrete_consulta: `Crie uma mensagem curta lembrando sobre uma consulta agendada. Seja cordial e profissional.`,
+      orcamento: `Crie uma mensagem curta perguntando se ficou alguma dúvida sobre o orçamento enviado. Seja prestativo.`,
+      pos_consulta: `Crie uma mensagem curta de follow-up pós-consulta/procedimento. Demonstre cuidado e disponibilidade.`,
+      confirmacao: `Crie uma mensagem curta pedindo confirmação de presença para uma consulta. Seja direto mas cordial.`,
+      reagendamento: `Crie uma mensagem curta oferecendo reagendar uma consulta. Seja compreensivo e flexível.`,
+      oferta: `Crie uma mensagem curta com uma oferta personalizada. Seja atraente mas profissional.`,
+    }
+    basePrompt = promptsByType[params.tipoFollowUp] || promptsByType.reativacao
+  }
 
   let contextInfo = `
 DADOS DO LEAD:

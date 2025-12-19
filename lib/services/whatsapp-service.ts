@@ -28,17 +28,39 @@ interface MessageResponse {
  */
 export async function sendWhatsAppMessage(params: SendMessageParams): Promise<MessageResponse> {
   if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-    throw new Error('Evolution API não configurada')
+    console.error('Evolution API não configurada:', {
+      hasUrl: !!EVOLUTION_API_URL,
+      hasKey: !!EVOLUTION_API_KEY,
+    })
+    throw new Error('Evolution API não configurada. Verifique as variáveis de ambiente EVOLUTION_API_URL e EVOLUTION_API_KEY.')
   }
 
   try {
-    const phoneNumber = params.phone.replace('@s.whatsapp.net', '')
+    // Normalizar número de telefone
+    let phoneNumber = params.phone.replace('@s.whatsapp.net', '').trim()
+    
+    // Garantir que o número tenha apenas dígitos
+    phoneNumber = phoneNumber.replace(/\D/g, '')
+    
+    // Se o número não começar com código do país e parecer ser brasileiro (começa com área)
+    // e tiver 10 ou 11 dígitos, adicionar código do Brasil (55)
+    if (phoneNumber.length >= 10 && phoneNumber.length <= 11 && !phoneNumber.startsWith('55')) {
+      phoneNumber = `55${phoneNumber}`
+    }
+    
     const url = `${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE_NAME}`
 
     const payload: any = {
       number: phoneNumber,
       text: params.message || '',
     }
+    
+    console.log('Enviando mensagem via Evolution API:', {
+      url,
+      phoneNumber,
+      hasText: !!params.message,
+      instance: EVOLUTION_INSTANCE_NAME,
+    })
 
     if (params.mediaUrl) {
       // Para mídia, usar endpoint diferente
@@ -63,8 +85,17 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Me
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Erro ao enviar mídia')
+        let errorMessage = `Erro ao enviar mídia (Status: ${response.status})`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+          console.error('Erro da Evolution API (mídia):', errorData)
+        } catch (parseError) {
+          const textError = await response.text().catch(() => 'Erro desconhecido')
+          errorMessage = `Erro ao enviar mídia: ${textError}`
+          console.error('Erro ao parsear resposta da Evolution API (mídia):', textError)
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
@@ -81,14 +112,52 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Me
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Erro ao enviar mensagem')
+      let errorMessage = `Erro ao enviar mensagem (Status: ${response.status})`
+      let errorDetails: any = {}
+      try {
+        const errorData = await response.json()
+        errorDetails = errorData
+        // Tentar extrair mensagem de erro mais específica
+        if (errorData.response?.message) {
+          if (Array.isArray(errorData.response.message)) {
+            errorMessage = errorData.response.message.map((m: any) => {
+              if (typeof m === 'object' && m.message) return m.message
+              return String(m)
+            }).join(', ')
+          } else if (typeof errorData.response.message === 'string') {
+            errorMessage = errorData.response.message
+          } else {
+            errorMessage = JSON.stringify(errorData.response.message)
+          }
+        } else {
+          errorMessage = errorData.message || errorData.error || errorMessage
+        }
+        console.error('Erro da Evolution API:', {
+          status: response.status,
+          error: errorData,
+          payload,
+        })
+      } catch (parseError) {
+        const textError = await response.text().catch(() => 'Erro desconhecido')
+        errorMessage = `Erro ao enviar mensagem: ${textError}`
+        console.error('Erro ao parsear resposta da Evolution API:', {
+          status: response.status,
+          text: textError,
+          payload,
+        })
+      }
+      throw new Error(errorMessage)
     }
 
     const data = await response.json()
     return { success: true, messageId: data.key?.id }
   } catch (error: any) {
-    console.error('Erro ao enviar mensagem WhatsApp:', error)
+    console.error('Erro ao enviar mensagem WhatsApp:', {
+      message: error.message,
+      stack: error.stack,
+      phone: params.phone,
+      hasMessage: !!params.message,
+    })
     throw error
   }
 }
@@ -306,10 +375,11 @@ export async function getQRCode(): Promise<string | null> {
 /**
  * Envia mensagem e salva no banco + ativa atendimento humano
  */
-export async function sendMessageAsStaff(params: SendMessageParams & { userId?: string }): Promise<MessageResponse> {
+export async function sendMessageAsStaff(params: SendMessageParams & { userId?: string; skipHumanSupport?: boolean }): Promise<MessageResponse> {
   const response = await sendWhatsAppMessage(params)
 
-  if (params.userId) {
+  // Só ativa atendimento humano se não for mensagem de teste
+  if (params.userId && !params.skipHumanSupport) {
     await activateHumanSupport(params.phone, params.userId)
   }
 

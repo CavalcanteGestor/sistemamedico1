@@ -34,6 +34,7 @@ import {
   Calendar,
   CheckCircle2,
   AlertCircle,
+  Search,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
@@ -89,6 +90,7 @@ export default function NovoFollowUpPage() {
   const [loadingLeads, setLoadingLeads] = useState(true)
 
   // Filtros de seleção
+  const [buscaNomeNumero, setBuscaNomeNumero] = useState('') // Busca por nome ou número
   const [filtroEtapa, setFiltroEtapa] = useState('todas')
   const [filtroOrigem, setFiltroOrigem] = useState('')
   const [filtroInteresse, setFiltroInteresse] = useState('')
@@ -135,6 +137,7 @@ export default function NovoFollowUpPage() {
     applyAdvancedFilters()
   }, [
     leads,
+    buscaNomeNumero,
     filtroEtapa,
     filtroOrigem,
     filtroInteresse,
@@ -176,6 +179,18 @@ export default function NovoFollowUpPage() {
 
   const applyAdvancedFilters = () => {
     let filtered = [...leads]
+
+    // Busca por nome ou número (prioridade)
+    if (buscaNomeNumero.trim()) {
+      const busca = buscaNomeNumero.trim().toLowerCase()
+      filtered = filtered.filter((lead) => {
+        const nome = (lead.nome || '').toLowerCase()
+        const telefone = (lead.telefone || '').replace('@s.whatsapp.net', '').replace(/\D/g, '')
+        const buscaLimpa = busca.replace(/\D/g, '')
+        
+        return nome.includes(busca) || telefone.includes(buscaLimpa)
+      })
+    }
 
     // Filtro por etapa
     if (filtroEtapa && filtroEtapa !== 'todas') {
@@ -244,6 +259,7 @@ export default function NovoFollowUpPage() {
   }
 
   const clearFilters = () => {
+    setBuscaNomeNumero('')
     setFiltroEtapa('todas')
     setFiltroOrigem('')
     setFiltroInteresse('')
@@ -257,10 +273,22 @@ export default function NovoFollowUpPage() {
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch(`/api/follow-up/templates?tipoFollowUp=${tipoFollowUp}`)
-      const data = await response.json()
-      if (data.success) {
-        setTemplates(data.data)
+      // Carregar templates fixos quando tipo de mensagem for 'fixo'
+      if (tipoMensagem === 'fixo') {
+        const response = await fetch(`/api/follow-up/templates?tipoFollowUp=${tipoFollowUp}&tipoTemplate=fixo`)
+        const data = await response.json()
+        if (data.success) {
+          setTemplates(data.data)
+        }
+      } else if (tipoMensagem === 'ia') {
+        // Carregar templates de IA quando tipo de mensagem for 'ia'
+        const response = await fetch(`/api/follow-up/templates?tipoFollowUp=${tipoFollowUp}&tipoTemplate=ia`)
+        const data = await response.json()
+        if (data.success) {
+          setTemplates(data.data)
+        }
+      } else {
+        setTemplates([])
       }
     } catch (error) {
       console.error('Erro ao carregar templates:', error)
@@ -281,11 +309,35 @@ export default function NovoFollowUpPage() {
       setGeneratingAI(true)
       const lead = filteredLeads[0] // Gera para o primeiro como exemplo
       
+      // Buscar contexto completo do lead do banco se usarContexto estiver ativado
+      let leadContexto = ''
+      if (usarContexto) {
+        // Buscar contexto do banco de dados
+        const { data: leadCompleto, error } = await supabase
+          .from('leads')
+          .select('contexto, interesse, origem, etapa, status')
+          .eq('id', lead.id)
+          .single()
+
+        if (!error && leadCompleto) {
+          // Montar contexto completo
+          const partesContexto = []
+          if (leadCompleto.contexto) partesContexto.push(leadCompleto.contexto)
+          if (leadCompleto.interesse) partesContexto.push(`Interesse: ${leadCompleto.interesse}`)
+          if (leadCompleto.origem) partesContexto.push(`Origem: ${leadCompleto.origem}`)
+          if (leadCompleto.etapa) partesContexto.push(`Etapa: ${leadCompleto.etapa}`)
+          
+          leadContexto = partesContexto.join('. ') || 'Sem contexto disponível'
+        } else {
+          leadContexto = lead.contexto || 'Sem contexto disponível'
+        }
+      }
+      
       const response = await fetch('/api/follow-up/generate-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadContexto: usarContexto ? (lead.contexto || 'Sem contexto') : '',
+          leadContexto,
           leadNome: lead.nome,
           tipoFollowUp,
           promptPersonalizado: promptPersonalizado || undefined,
@@ -698,6 +750,23 @@ export default function NovoFollowUpPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Busca por Nome ou Número */}
+              <div>
+                <Label>Buscar por Nome ou Número</Label>
+                <div className="relative mt-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Digite o nome ou número do lead (ex: João ou 5537999458769)"
+                    value={buscaNomeNumero}
+                    onChange={(e) => setBuscaNomeNumero(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Busque leads específicos por nome ou número de telefone. Deixe em branco para ver todos os leads.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Etapa</Label>

@@ -93,40 +93,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Enviar notificação para o paciente
+    // Enviar notificações usando o serviço de notificações
     try {
-      // Buscar dados do agendamento para notificar o paciente
-      const { data: appointmentForNotification } = await supabase
-        .from('appointments')
-        .select(`
-          *,
-          patients:patient_id (
-            id,
-            name,
-            user_id
-          ),
-          doctors:doctor_id (
-            id,
-            name
-          )
-        `)
-        .eq('id', appointmentId)
-        .single()
-
-      if (appointmentForNotification?.patients?.user_id) {
-        const doctorName = appointmentForNotification.doctors?.name || 'seu médico'
-        const appointmentDate = new Date(`${appointmentForNotification.appointment_date}T${appointmentForNotification.appointment_time}`)
-
-        // Criar notificação para o paciente
-        await supabase.from('notifications').insert({
-          user_id: appointmentForNotification.patients.user_id,
-          title: 'Consulta de Telemedicina Disponível',
-          message: `Sua consulta de telemedicina com Dr(a). ${doctorName} está disponível. Clique para entrar na consulta.`,
-          type: 'success',
-          link: `/portal/consultas/telemedicina/${appointmentId}`,
-          read: false,
-        })
-      }
+      const { createTelemedicineNotification } = await import('@/lib/services/notification-service')
+      await createTelemedicineNotification(session.id)
     } catch (notificationError) {
       // Não falhar a criação da sessão se a notificação falhar
       console.error('Erro ao enviar notificação:', notificationError)

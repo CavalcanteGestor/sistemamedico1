@@ -61,9 +61,11 @@ function EditarAgendamentoContent() {
       setLoadingData(true)
 
       // Carregar pacientes, médicos, salas e agendamento
-      const [patientsRes, doctorsRes, roomsRes, appointmentRes] = await Promise.all([
+      const { getAvailableDoctors } = await import('@/lib/utils/doctor-helpers')
+      const doctorsData = await getAvailableDoctors(supabase, { active: true })
+      
+      const [patientsRes, roomsRes, appointmentRes] = await Promise.all([
         supabase.from('patients').select('id, name').order('name'),
-        supabase.from('doctors').select('id, name, crm').eq('active', true).order('name'),
         supabase.from('clinic_rooms').select('id, name, description').eq('active', true).order('name'),
         supabase
           .from('appointments')
@@ -73,12 +75,11 @@ function EditarAgendamentoContent() {
       ])
 
       if (patientsRes.error) throw patientsRes.error
-      if (doctorsRes.error) throw doctorsRes.error
       if (roomsRes.error) throw roomsRes.error
       if (appointmentRes.error) throw appointmentRes.error
 
       setPatients(patientsRes.data || [])
-      setDoctors(doctorsRes.data || [])
+      setDoctors(doctorsData.map(d => ({ id: d.id, name: d.name, crm: d.crm })))
       setRooms(roomsRes.data || [])
       setAppointment(appointmentRes.data)
 

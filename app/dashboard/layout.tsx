@@ -1,6 +1,7 @@
 import { Sidebar } from '@/components/layout/sidebar'
 import { Toaster } from '@/components/ui/toaster'
 import { NotificationBell } from '@/components/notifications/notification-bell'
+import { FollowUpScheduler } from '@/components/follow-up/follow-up-scheduler'
 
 export default function DashboardLayout({
   children,
@@ -19,6 +20,7 @@ export default function DashboardLayout({
         </div>
       </main>
       <Toaster />
+      <FollowUpScheduler />
     </div>
   )
 }

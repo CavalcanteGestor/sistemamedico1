@@ -21,6 +21,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
 # Local env files
 .env*.local
@@ -45,21 +46,26 @@ next-env.d.ts
 # OS
 Thumbs.db
 
-# Arquivos de configuração sensíveis (n8n workflows podem ter dados sensíveis)
-# Mantenha backups seguros destes arquivos
+# Arquivos de configuração sensíveis
 Lumi.json
 MCPSLumi.json
 
-# Documentação de desenvolvimento (mantenha apenas README.md se necessário)
+# Logs
+logs
+*.log
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Manter apenas documentação essencial
 *.md
 !README.md
+!INSTALACAO.md
+!CHECKLIST_PRODUCAO.md
 !supabase/README.md
-!GUIA_*.md
-!INSTALACAO_*.md
-!DEPLOY_*.md
-!CONFIGURAR_*.md
-!AVISOS_*.md
-
-# Diretórios de seed (desenvolvimento apenas)
-app/api/seed/
-app/dashboard/seed/

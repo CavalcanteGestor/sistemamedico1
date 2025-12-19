@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { phone, message, mediaUrl, mediaType } = body
+    const { phone, message, mediaUrl, mediaType, isTest } = body
 
     if (!phone) {
       return NextResponse.json({ error: 'Telefone é obrigatório' }, { status: 400 })
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
       mediaUrl,
       mediaType,
       userId: user.id,
+      skipHumanSupport: isTest === true, // Não ativar atendimento humano para mensagens de teste
     })
 
     return NextResponse.json({ success: true, data: response })

@@ -24,6 +24,8 @@ import {
   MessageSquare,
   Repeat,
   ArrowLeft,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -44,7 +46,21 @@ import {
   Cell,
 } from 'recharts'
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8']
+// Cores específicas para cada status
+const STATUS_COLORS: Record<string, string> = {
+  Pendente: '#F59E0B', // Amarelo
+  Enviado: '#3B82F6', // Azul
+  Cancelado: '#6B7280', // Cinza
+  Falhou: '#EF4444', // Vermelho
+}
+
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
+
+interface ChartDataItem {
+  name: string
+  value: number
+  color?: string
+}
 
 export default function FollowUpDashboardPage() {
   const router = useRouter()
@@ -61,9 +77,12 @@ export default function FollowUpDashboardPage() {
     taxaResposta: 0,
     recorrentes: 0,
     agendados: 0,
+    agendadosPendentes: 0,
+    agendadosAtrasados: 0,
   })
+  const [processing, setProcessing] = useState(false)
 
-  const [chartData, setChartData] = useState<any[]>([])
+  const [chartData, setChartData] = useState<ChartDataItem[]>([])
   const [tipoChartData, setTipoChartData] = useState<any[]>([])
   const [evolucaoData, setEvolucaoData] = useState<any[]>([])
 
@@ -105,6 +124,20 @@ export default function FollowUpDashboardPage() {
       const taxaResposta = enviado > 0 ? (comResposta / enviado) * 100 : 0
       const recorrentes = followUps?.filter((f) => f.recorrente === true).length || 0
       const agendados = followUps?.filter((f) => f.agendado_para !== null).length || 0
+      
+      // Agendados pendentes (ainda não enviados)
+      const agendadosPendentes = followUps?.filter(
+        (f) => f.agendado_para !== null && f.status === 'pendente'
+      ).length || 0
+      
+      // Agendados atrasados (data passou mas ainda pendente)
+      const now = new Date()
+      const agendadosAtrasados = followUps?.filter(
+        (f) => 
+          f.agendado_para !== null && 
+          f.status === 'pendente' &&
+          new Date(f.agendado_para) <= now
+      ).length || 0
 
       setStats({
         total,
@@ -116,24 +149,45 @@ export default function FollowUpDashboardPage() {
         taxaResposta: Math.round(taxaResposta * 10) / 10,
         recorrentes,
         agendados,
+        agendadosPendentes,
+        agendadosAtrasados,
       })
 
-      // Dados para gráfico de status
-      setChartData([
-        { name: 'Pendente', value: pendente },
-        { name: 'Enviado', value: enviado },
-        { name: 'Cancelado', value: cancelado },
-        { name: 'Falhou', value: falhou },
-      ])
+      // Dados para gráfico de status - filtrar valores zero para melhor visualização
+      const statusData = [
+        { name: 'Pendente', value: pendente, color: STATUS_COLORS.Pendente },
+        { name: 'Enviado', value: enviado, color: STATUS_COLORS.Enviado },
+        { name: 'Cancelado', value: cancelado, color: STATUS_COLORS.Cancelado },
+        { name: 'Falhou', value: falhou, color: STATUS_COLORS.Falhou },
+      ].filter(item => item.value > 0) // Remover valores zero
+      
+      setChartData(statusData)
 
-      // Dados para gráfico de tipo
+      // Dados para gráfico de tipo com labels legíveis
+      const TIPO_LABELS: Record<string, string> = {
+        reativacao: 'Reativação',
+        promocao: 'Promoção',
+        lembrete_consulta: 'Lembrete de Consulta',
+        orcamento: 'Orçamento não respondido',
+        pos_consulta: 'Follow-up Pós-consulta',
+        confirmacao: 'Confirmação de Presença',
+        reagendamento: 'Reagendamento',
+        oferta: 'Oferta Personalizada',
+      }
+
       const tiposCount: Record<string, number> = {}
       followUps?.forEach((f) => {
         tiposCount[f.tipo_follow_up] = (tiposCount[f.tipo_follow_up] || 0) + 1
       })
 
       setTipoChartData(
-        Object.entries(tiposCount).map(([name, value]) => ({ name, value }))
+        Object.entries(tiposCount)
+          .map(([name, value]) => ({ 
+            name: TIPO_LABELS[name] || name, 
+            value,
+            originalName: name 
+          }))
+          .sort((a, b) => b.value - a.value) // Ordenar por valor decrescente
       )
 
       // Dados para evolução temporal (últimos 7 dias)
@@ -171,6 +225,37 @@ export default function FollowUpDashboardPage() {
     }
   }
 
+  const handleProcessScheduled = async () => {
+    try {
+      setProcessing(true)
+      const response = await fetch('/api/follow-up/process-scheduled', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        // Recarregar dados
+        await loadDashboardData()
+        
+        // Mostrar toast com resultado
+        const { agendados, recorrentes } = result.data
+        const totalProcessados = agendados.sent + recorrentes.sent
+        const totalFalharam = agendados.failed + recorrentes.failed
+        
+        if (totalProcessados > 0) {
+          // Toast será mostrado pelo sistema
+        }
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error: any) {
+      console.error('Erro ao processar:', error)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -181,6 +266,15 @@ export default function FollowUpDashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="default" 
+            onClick={handleProcessScheduled}
+            disabled={processing}
+            title="Processar follow-ups agendados agora"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${processing ? 'animate-spin' : ''}`} />
+            {processing ? 'Processando...' : 'Processar Agendados'}
+          </Button>
           <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
             <SelectTrigger className="w-[180px]">
               <SelectValue />
@@ -227,12 +321,19 @@ export default function FollowUpDashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Agendados</CardTitle>
+            <CardTitle className="text-sm font-medium">Agendados Pendentes</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.agendados}</div>
-            <p className="text-xs text-muted-foreground">Aguardando envio</p>
+            <div className="text-2xl font-bold">{stats.agendadosPendentes}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.agendadosAtrasados > 0 && (
+                <span className="text-red-500 font-medium">
+                  {stats.agendadosAtrasados} atrasado{stats.agendadosAtrasados > 1 ? 's' : ''}
+                </span>
+              )}
+              {stats.agendadosAtrasados === 0 && 'Aguardando envio'}
+            </p>
           </CardContent>
         </Card>
 
@@ -247,6 +348,33 @@ export default function FollowUpDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Alerta de agendados atrasados */}
+      {stats.agendadosAtrasados > 0 && (
+        <Card className="border-red-500 bg-red-50 dark:bg-red-950">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              <div className="flex-1">
+                <p className="font-medium text-red-900 dark:text-red-100">
+                  {stats.agendadosAtrasados} follow-up{stats.agendadosAtrasados > 1 ? 's' : ''} agendado{stats.agendadosAtrasados > 1 ? 's' : ''} atrasado{stats.agendadosAtrasados > 1 ? 's' : ''}
+                </p>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  Clique em "Processar Agendados" para enviar agora
+                </p>
+              </div>
+              <Button 
+                variant="default" 
+                onClick={handleProcessScheduled}
+                disabled={processing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${processing ? 'animate-spin' : ''}`} />
+                Processar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Cards de Status */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -308,25 +436,67 @@ export default function FollowUpDashboardPage() {
             <CardDescription>Quantidade de follow-ups por status</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {chartData.length === 0 ? (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <p>Nenhum dado para exibir</p>
+              </div>
+            ) : chartData.length === 1 ? (
+              // Se houver apenas um status, mostrar gráfico de barra simples
+              <div className="space-y-4">
+                <div className="flex items-center justify-center h-[250px]">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold mb-2">{chartData[0].value}</div>
+                    <div className="text-lg text-muted-foreground">{chartData[0].name}</div>
+                    <div className="text-sm text-muted-foreground mt-1">100% do total</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => {
+                      // Só mostrar label se a porcentagem for maior que 5%
+                      if (percent < 0.05) return ''
+                      return `${name}\n${value} (${(percent * 100).toFixed(1)}%)`
+                    }}
+                    outerRadius={100}
+                    innerRadius={40}
+                    fill="#8884d8"
+                    dataKey="value"
+                    paddingAngle={2}
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number, name: string) => [
+                      `${value} follow-up${value !== 1 ? 's' : ''}`,
+                      name
+                    ]}
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                    }}
+                  />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={36}
+                    formatter={(value) => {
+                      const item = chartData.find(d => d.name === value)
+                      return `${value} (${item?.value || 0})`
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -337,15 +507,52 @@ export default function FollowUpDashboardPage() {
             <CardDescription>Quantidade por tipo de follow-up</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={tipoChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
+            {tipoChartData.length === 0 ? (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <p>Nenhum dado para exibir</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart 
+                  data={tipoChartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12 }}
+                    allowDecimals={false}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => [
+                      `${value} follow-up${value !== 1 ? 's' : ''}`,
+                      'Quantidade'
+                    ]}
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                    }}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#3B82F6"
+                    radius={[8, 8, 0, 0]}
+                  >
+                    {tipoChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -357,14 +564,50 @@ export default function FollowUpDashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={evolucaoData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="data" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="Enviados" stroke="#8884d8" />
-                <Line type="monotone" dataKey="Respostas" stroke="#82ca9d" />
+              <LineChart 
+                data={evolucaoData}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="data" 
+                  tick={{ fontSize: 12 }}
+                />
+                <YAxis 
+                  tick={{ fontSize: 12 }}
+                  allowDecimals={false}
+                />
+                <Tooltip 
+                  formatter={(value: number, name: string) => [
+                    `${value} ${name.toLowerCase()}`,
+                    name
+                  ]}
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                  }}
+                />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '20px' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="Enviados" 
+                  stroke="#3B82F6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3B82F6', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="Respostas" 
+                  stroke="#10B981" 
+                  strokeWidth={2}
+                  dot={{ fill: '#10B981', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>

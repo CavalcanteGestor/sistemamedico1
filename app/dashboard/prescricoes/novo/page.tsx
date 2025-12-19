@@ -81,7 +81,11 @@ export default function NovaPrescricaoPage() {
     try {
       const [patientsRes, doctorsRes, medicationsRes] = await Promise.all([
         supabase.from('patients').select('id, name').order('name'),
-        supabase.from('doctors').select('id, name, crm').eq('active', true).order('name'),
+        // Usar helper para buscar apenas médicos com login
+        (async () => {
+          const { getAvailableDoctors } = await import('@/lib/utils/doctor-helpers')
+          return { data: await getAvailableDoctors(supabase, { active: true }), error: null }
+        })(),
         supabase.from('medications').select('id, name').order('name'),
       ])
 
@@ -90,7 +94,7 @@ export default function NovaPrescricaoPage() {
       if (medicationsRes.error) throw medicationsRes.error
 
       setPatients(patientsRes.data || [])
-      setDoctors(doctorsRes.data || [])
+      setDoctors((doctorsRes.data || []).map((d: any) => ({ id: d.id, name: d.name, crm: d.crm })))
       setMedications(medicationsRes.data || [])
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
