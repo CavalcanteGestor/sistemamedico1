@@ -24,11 +24,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { leadId, cpf, birthDate } = body
+    const { leadId, cpf, birthDate, email } = body
 
-    if (!leadId || !cpf || !birthDate) {
+    if (!leadId || !cpf || !birthDate || !email) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: leadId, cpf, birthDate' },
+        { error: 'Campos obrigatórios: leadId, cpf, birthDate, email' },
+        { status: 400 }
+      )
+    }
+
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Email inválido' },
         { status: 400 }
       )
     }
@@ -45,15 +54,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se CPF já existe
-    const { data: existingPatient } = await supabase
+    const { data: existingPatientByCpf } = await supabase
       .from('patients')
       .select('id')
       .eq('cpf', cpf)
       .maybeSingle()
 
-    if (existingPatient) {
+    if (existingPatientByCpf) {
       return NextResponse.json(
         { error: 'CPF já cadastrado como paciente' },
+        { status: 400 }
+      )
+    }
+
+    // Verificar se email já existe
+    const { data: existingPatientByEmail } = await supabase
+      .from('patients')
+      .select('id')
+      .eq('email', email.trim().toLowerCase())
+      .maybeSingle()
+
+    if (existingPatientByEmail) {
+      return NextResponse.json(
+        { error: 'Email já cadastrado como paciente' },
         { status: 400 }
       )
     }
@@ -66,7 +89,7 @@ export async function POST(request: NextRequest) {
         cpf: cpf,
         birth_date: birthDate,
         phone: lead.telefone?.replace('@s.whatsapp.net', ''),
-        email: lead.email || '',
+        email: email.trim().toLowerCase(),
         address: lead.endereco || '',
       })
       .select()

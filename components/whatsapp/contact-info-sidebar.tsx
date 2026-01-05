@@ -96,6 +96,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
   const [converting, setConverting] = useState(false)
   const [cpf, setCpf] = useState('')
   const [birthDate, setBirthDate] = useState('')
+  const [email, setEmail] = useState('')
   const supabase = createClient()
   const router = useRouter()
   const { toast } = useToast()
@@ -406,7 +407,11 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
                       variant="default"
                       size="sm"
                       className="text-xs"
-                      onClick={() => setShowConvertDialog(true)}
+                      onClick={() => {
+                        // Pré-preencher email se o lead tiver
+                        setEmail(lead.email || '')
+                        setShowConvertDialog(true)
+                      }}
                     >
                       <UserPlus className="h-3 w-3 mr-1" />
                       Converter em Paciente
@@ -667,6 +672,20 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="email@exemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                O email é obrigatório para criar o cadastro e login do paciente.
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="cpf">CPF *</Label>
               <Input
                 id="cpf"
@@ -682,6 +701,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
                   }
                 }}
                 maxLength={14}
+                required
               />
             </div>
             <div className="space-y-2">
@@ -692,6 +712,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
                 max={new Date().toISOString().split('T')[0]}
+                required
               />
             </div>
             {lead && (
@@ -699,8 +720,8 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
                 <p className="text-sm font-medium mb-1">Dados que serão usados:</p>
                 <p className="text-xs text-muted-foreground">Nome: {lead.nome || contactName || 'Não informado'}</p>
                 <p className="text-xs text-muted-foreground">Telefone: {lead.telefone?.replace('@s.whatsapp.net', '') || phone}</p>
-                {lead.email && (
-                  <p className="text-xs text-muted-foreground">Email: {lead.email}</p>
+                {lead.email && !email && (
+                  <p className="text-xs text-blue-600">💡 Email do lead: {lead.email} (pré-preenchido)</p>
                 )}
               </div>
             )}
@@ -712,6 +733,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
                 setShowConvertDialog(false)
                 setCpf('')
                 setBirthDate('')
+                setEmail('')
               }}
               disabled={converting}
             >
@@ -719,7 +741,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
             </Button>
             <Button
               onClick={handleConvertToPatient}
-              disabled={converting || !cpf || !birthDate}
+              disabled={converting || !cpf || !birthDate || !email}
             >
               {converting ? (
                 <>
@@ -740,10 +762,21 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
   )
 
   const handleConvertToPatient = async () => {
-    if (!lead || !cpf || !birthDate) {
+    if (!lead || !cpf || !birthDate || !email) {
       toast({
         title: 'Erro',
-        description: 'Preencha CPF e data de nascimento',
+        description: 'Preencha todos os campos obrigatórios: Email, CPF e data de nascimento',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      toast({
+        title: 'Erro',
+        description: 'Email inválido. Por favor, verifique o formato.',
         variant: 'destructive',
       })
       return
@@ -759,6 +792,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
           leadId: lead.id,
           cpf: cpf.replace(/\D/g, ''),
           birthDate,
+          email: email.trim().toLowerCase(),
         }),
       })
 
@@ -772,6 +806,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
         setShowConvertDialog(false)
         setCpf('')
         setBirthDate('')
+        setEmail('')
         
         // Recarregar informações do contato
         await loadContactInfo()
