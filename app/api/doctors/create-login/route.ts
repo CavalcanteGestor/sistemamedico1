@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimiters } from '@/lib/middleware/rate-limit'
 
 /**
  * API Route para criar login para médico existente (sem user_id)
@@ -8,6 +9,12 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting para criação de recursos
+    const rateLimitResponse = await rateLimiters.create(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     

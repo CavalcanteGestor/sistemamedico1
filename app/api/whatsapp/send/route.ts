@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendMessageAsStaff } from '@/lib/services/whatsapp-service'
+import { rateLimiters } from '@/lib/middleware/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting para WhatsApp
+    const rateLimitResponse = await rateLimiters.whatsapp(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
     const supabase = await createClient()
     const {
       data: { user },

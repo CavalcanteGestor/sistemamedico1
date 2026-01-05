@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { validateFile, sanitizeFilename } from '@/lib/utils/file-validation'
+import { rateLimiters } from '@/lib/middleware/rate-limit'
 
 async function uploadToSupabase(
   bucket: string,
@@ -54,6 +56,12 @@ async function uploadToSupabase(
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting para uploads
+    const rateLimitResponse = await rateLimiters.upload(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
     const supabase = await createClient()
     const {
       data: { user },
@@ -75,8 +83,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validar arquivo antes de fazer upload
+    const validation = validateFile(file, 'medical')
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: 400 }
+      )
+    }
+
+    // Sanitizar nome do arquivo
+    const sanitizedFileName = sanitizeFilename(file.name)
     const timestamp = Date.now()
-    const fileName = `${timestamp}-${file.name}`
+    const fileName = `${timestamp}-${sanitizedFileName}`
     const filePath = folder ? `${folder}/${fileName}` : fileName
 
     const { url, path } = await uploadToSupabase(bucket, filePath, file)

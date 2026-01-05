@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rateLimiters } from '@/lib/middleware/rate-limit'
 import { randomBytes } from 'crypto'
 
 // Senha padrão para novos pacientes
@@ -27,6 +28,12 @@ function generateUsername(name: string, patientId?: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting para criação de recursos
+    const rateLimitResponse = await rateLimiters.create(request)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
     const body = await request.json()
     const { patientId, email, name } = body
 

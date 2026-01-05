@@ -21,6 +21,26 @@ const nextConfig = {
   },
   // Headers de segurança para produção
   async headers() {
+    const isProduction = process.env.NODE_ENV === 'production'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://seu-dominio.com'
+    
+    // Content Security Policy
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.sentry-cdn.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: https: blob:",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.openai.com wss://*.supabase.co",
+      "media-src 'self' blob:",
+      "frame-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests",
+    ].join('; ')
+
     return [
       {
         source: '/(.*)',
@@ -45,7 +65,27 @@ const nextConfig = {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
           },
-        ],
+          {
+            key: 'Strict-Transport-Security',
+            value: isProduction ? 'max-age=31536000; includeSubDomains; preload' : '',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: csp,
+          },
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on',
+          },
+          {
+            key: 'X-Download-Options',
+            value: 'noopen',
+          },
+          {
+            key: 'X-Permitted-Cross-Domain-Policies',
+            value: 'none',
+          },
+        ].filter(header => header.value !== ''), // Remove headers vazios
       },
     ]
   },

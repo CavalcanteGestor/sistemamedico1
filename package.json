@@ -12,7 +12,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "check": "node scripts/check-build.js",
-    "prebuild": "npm run check"
+    "check:security": "node scripts/check-security.js",
+    "prebuild": "npm run check && npm run check:security"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
