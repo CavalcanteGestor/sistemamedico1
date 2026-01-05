@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAllChats } from '@/lib/services/whatsapp-service'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,16 +27,13 @@ export async function GET(request: NextRequest) {
 
     // Buscar conversas DIRETAMENTE da Evolution API (como WhatsApp Web)
     try {
-      console.log('[API /whatsapp/chats] Iniciando busca de conversas...')
-      console.log('[API /whatsapp/chats] EVOLUTION_API_URL:', process.env.EVOLUTION_API_URL || process.env.NEXT_PUBLIC_EVOLUTION_API_URL)
-      console.log('[API /whatsapp/chats] EVOLUTION_INSTANCE_NAME:', process.env.EVOLUTION_INSTANCE_NAME)
-      
       const chats = await getAllChats()
       
-      console.log(`[API /whatsapp/chats] Total de conversas encontradas: ${chats?.length || 0}`)
-      
       if (chats.length === 0) {
-        console.warn('[API /whatsapp/chats] ⚠️ Nenhuma conversa encontrada. Verifique os logs anteriores para ver quais endpoints foram testados.')
+        logger.warn('Nenhuma conversa encontrada na Evolution API', {
+          evolutionApiUrl: process.env.EVOLUTION_API_URL || process.env.NEXT_PUBLIC_EVOLUTION_API_URL,
+          instanceName: process.env.EVOLUTION_INSTANCE_NAME,
+        })
       }
       
       return NextResponse.json({ 
@@ -43,7 +41,10 @@ export async function GET(request: NextRequest) {
         data: chats || [],
       })
     } catch (apiError: any) {
-      console.error('[API /whatsapp/chats] Erro ao buscar da Evolution API:', apiError)
+      logger.error('Erro ao buscar conversas da Evolution API', apiError, {
+        url: process.env.EVOLUTION_API_URL || process.env.NEXT_PUBLIC_EVOLUTION_API_URL,
+        instance: process.env.EVOLUTION_INSTANCE_NAME,
+      })
       
       // Se der erro na Evolution API, retornar erro detalhado
       return NextResponse.json({
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
   } catch (error: any) {
-    console.error('Erro ao buscar conversas:', error)
+    logger.error('Erro ao buscar conversas', error)
     return NextResponse.json(
       { error: error.message || 'Erro ao buscar conversas' },
       { status: 500 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendMessageAsStaff } from '@/lib/services/whatsapp-service'
 import { rateLimiters } from '@/lib/middleware/rate-limit'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: response })
   } catch (error: any) {
-    console.error('Erro ao enviar mensagem WhatsApp:', error)
+    logger.error('Erro ao enviar mensagem WhatsApp', error, { phone: body.phone })
     return NextResponse.json(
       { error: error.message || 'Erro ao enviar mensagem' },
       { status: 500 }

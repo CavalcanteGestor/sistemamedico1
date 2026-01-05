@@ -4,6 +4,7 @@
  */
 
 import { processScheduledFollowUps } from './follow-up-service'
+import { logger } from '@/lib/logger'
 
 let pollingInterval: NodeJS.Timeout | null = null
 let isProcessing = false
@@ -19,28 +20,31 @@ export function startFollowUpScheduler(intervalMinutes: number = 1) {
   // Converter minutos para milissegundos
   const intervalMs = intervalMinutes * 60 * 1000
 
-  console.log(`[Follow-up Scheduler] Iniciando processamento automático a cada ${intervalMinutes} minuto(s)`)
+  logger.info('Iniciando processamento automático de follow-ups', { intervalMinutes })
 
   // Processar imediatamente na primeira vez
-  processScheduledFollowUps().catch(console.error)
+  processScheduledFollowUps().catch((error) => logger.error('Erro ao processar follow-ups inicial', error))
 
   // Configurar intervalo
   pollingInterval = setInterval(async () => {
     if (isProcessing) {
-      console.log('[Follow-up Scheduler] Processamento anterior ainda em andamento, pulando...')
+      logger.debug('Processamento anterior ainda em andamento, pulando ciclo')
       return
     }
 
     try {
       isProcessing = true
-      console.log('[Follow-up Scheduler] Processando follow-ups agendados...')
+      logger.debug('Processando follow-ups agendados')
       const result = await processScheduledFollowUps()
       
       if (result.agendados.sent > 0 || result.recorrentes.sent > 0) {
-        console.log(`[Follow-up Scheduler] Processados: ${result.agendados.sent} agendados, ${result.recorrentes.sent} recorrentes`)
+        logger.info('Follow-ups processados', {
+          agendados: result.agendados.sent,
+          recorrentes: result.recorrentes.sent,
+        })
       }
     } catch (error) {
-      console.error('[Follow-up Scheduler] Erro ao processar follow-ups:', error)
+      logger.error('Erro ao processar follow-ups agendados', error)
     } finally {
       isProcessing = false
     }

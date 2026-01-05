@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimiters } from '@/lib/middleware/rate-limit'
+import { logger } from '@/lib/logger'
 
 /**
  * API Route para criar login para médico existente (sem user_id)
@@ -178,15 +179,14 @@ export async function POST(request: NextRequest) {
 
           if (!response.ok) {
             const errorText = await response.text()
-            console.error('Erro ao enviar email via Supabase API:', errorText)
-            console.error('redirect_to usado:', redirectUrl)
+            logger.error('Erro ao enviar email via Supabase API', undefined, { errorText, redirectUrl })
           } else {
-            console.log('Email de convite enviado para:', email, 'com redirect_to:', redirectUrl)
+            logger.info('Email de convite enviado', { email, redirectUrl })
           }
         }
       } catch (emailError) {
         // Se falhar ao enviar email, não bloquear criação do login
-        console.error('Erro ao enviar email de convite (não crítico):', emailError)
+        logger.warn('Erro ao enviar email de convite (não crítico)', { error: emailError })
       }
     }
 
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
       emailSent: !password, // Indica se o email foi enviado
     })
   } catch (error: any) {
-    console.error('Erro ao criar login para médico:', error)
+    logger.error('Erro ao criar login para médico', error)
     return NextResponse.json(
       { error: error.message || 'Erro ao criar login para médico' },
       { status: 500 }

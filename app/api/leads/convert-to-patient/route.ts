@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { rateLimiters } from '@/lib/middleware/rate-limit'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (patientError) {
-      console.error('Erro ao criar paciente:', patientError)
+      logger.error('Erro ao criar paciente na conversão de lead', patientError)
       return NextResponse.json(
         { error: 'Erro ao criar paciente: ' + patientError.message },
         { status: 500 }
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
       })
 
       if (userError || !newUser.user) {
-        console.error('Erro ao criar usuário:', userError)
+        logger.error('Erro ao criar usuário na conversão de lead', userError)
         // Se falhar ao criar usuário, deleta o paciente criado
         await supabase.from('patients').delete().eq('id', newPatient.id)
         return NextResponse.json(
@@ -218,7 +219,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    console.error('Erro ao converter lead em paciente:', error)
+    logger.error('Erro ao converter lead em paciente', error)
     return NextResponse.json(
       { error: error.message || 'Erro ao converter lead' },
       { status: 500 }

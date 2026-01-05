@@ -109,7 +109,7 @@ export function CreateFollowUpDialog({
         setTemplates([])
       }
     } catch (error) {
-      console.error('Erro ao carregar templates:', error)
+      logger.error('Erro ao carregar templates de follow-up', error)
     }
   }
 
@@ -151,7 +151,7 @@ export function CreateFollowUpDialog({
             leadContexto = partesContexto.join('. ') || 'Sem contexto disponível'
           }
         } catch (error) {
-          console.error('Erro ao buscar contexto do lead:', error)
+          logger.error('Erro ao buscar contexto do lead', error)
         }
       }
       

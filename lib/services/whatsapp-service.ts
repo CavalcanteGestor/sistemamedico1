@@ -55,7 +55,7 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Me
       text: params.message || '',
     }
     
-    console.log('Enviando mensagem via Evolution API:', {
+    logger.debug('Enviando mensagem via Evolution API', {
       url,
       phoneNumber,
       hasText: !!params.message,
@@ -132,7 +132,7 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Me
         } else {
           errorMessage = errorData.message || errorData.error || errorMessage
         }
-        console.error('Erro da Evolution API:', {
+        logger.error('Erro da Evolution API', undefined, {
           status: response.status,
           error: errorData,
           payload,
@@ -140,7 +140,7 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Me
       } catch (parseError) {
         const textError = await response.text().catch(() => 'Erro desconhecido')
         errorMessage = `Erro ao enviar mensagem: ${textError}`
-        console.error('Erro ao parsear resposta da Evolution API:', {
+        logger.error('Erro ao parsear resposta da Evolution API', undefined, {
           status: response.status,
           text: textError,
           payload,
@@ -152,9 +152,7 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Me
     const data = await response.json()
     return { success: true, messageId: data.key?.id }
   } catch (error: any) {
-    console.error('Erro ao enviar mensagem WhatsApp:', {
-      message: error.message,
-      stack: error.stack,
+    logger.error('Erro ao enviar mensagem WhatsApp', error, {
       phone: params.phone,
       hasMessage: !!params.message,
     })

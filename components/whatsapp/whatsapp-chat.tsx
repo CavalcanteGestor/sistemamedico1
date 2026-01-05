@@ -14,6 +14,7 @@ import { markMessagesAsRead } from '@/lib/services/whatsapp-service'
 import { format, isToday, isYesterday, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface Message {
   id: string
@@ -188,7 +189,7 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
     
     // Evitar carregamentos duplicados
     if (loadingRef.current) {
-      console.log(`[loadMessages] Já está carregando para ${phone}`)
+      logger.debug('Já está carregando mensagens para este telefone', { phone })
       return
     }
     
@@ -274,7 +275,7 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
       }
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || 'Erro desconhecido ao carregar mensagens'
-      console.error('[loadMessages] Erro:', errorMessage, error)
+      logger.error('Erro ao carregar mensagens', error, { phone: targetPhone, errorMessage })
       toast({
         title: 'Erro',
         description: errorMessage,
@@ -352,7 +353,7 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
           markAsRead()
         }
       } catch (error) {
-        console.error('[subscribeToMessages] Erro ao buscar novas mensagens:', error)
+        logger.error('Erro ao buscar novas mensagens na subscription', error, { phone })
       }
     }
     
@@ -372,7 +373,7 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
     try {
       await markMessagesAsRead(phone)
     } catch (error) {
-      console.error('Erro ao marcar mensagens como lidas:', error)
+      logger.error('Erro ao marcar mensagens como lidas', error, { phone })
     }
   }
 
@@ -436,6 +437,7 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
         description: 'Sua mensagem foi enviada com sucesso.',
       })
     } catch (error: any) {
+      logger.error('Erro ao enviar mensagem WhatsApp', error, { phone })
       toast({
         title: 'Erro ao enviar',
         description: error.message || 'Não foi possível enviar a mensagem',
@@ -512,7 +514,7 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
     const messagesWithValidTimestamps = filteredMessages.map(msg => {
       const timestamp = msg.timestamp || msg.created_at
       if (!timestamp || isNaN(new Date(timestamp).getTime())) {
-        console.warn(`[groupedMessages] Mensagem sem timestamp válido:`, msg.id, msg.timestamp, msg.created_at)
+        logger.warn('Mensagem sem timestamp válido', { messageId: msg.id, timestamp: msg.timestamp, createdAt: msg.created_at })
         // Se não tem timestamp válido, usar timestamp atual como fallback (colocar no final)
         return {
           ...msg,

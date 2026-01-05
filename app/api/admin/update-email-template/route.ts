@@ -348,7 +348,7 @@ async function updateEmailTemplate() {
 
     return NextResponse.json(result)
   } catch (error: any) {
-    console.error('Erro ao atualizar template de email:', error)
+    // Erro já tratado no catch acima
     return NextResponse.json(
       {
         success: false,

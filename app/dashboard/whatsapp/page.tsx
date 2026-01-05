@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Maximize2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { logger } from '@/lib/logger'
 
 export default function WhatsAppPage() {
   const router = useRouter()
@@ -37,7 +38,7 @@ export default function WhatsAppPage() {
         .maybeSingle()
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Erro ao buscar nome do lead:', error)
+        logger.error('Erro ao buscar nome do lead', error, { phone })
       }
 
       // Priorizar: lead > nome da conversa > telefone
@@ -49,7 +50,7 @@ export default function WhatsAppPage() {
         setContactName(phone.replace('@s.whatsapp.net', '').replace('@lid', ''))
       }
     } catch (error) {
-      console.error('Erro ao buscar contato:', error)
+      logger.error('Erro ao buscar contato', error, { phone })
       setContactName(phone.replace('@s.whatsapp.net', '').replace('@lid', ''))
     }
   }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import {
   LogOut,
   ChevronDown,
@@ -85,7 +86,7 @@ export function Sidebar() {
         setOpenGroups(initialOpen)
       }
     } catch (error) {
-      console.error('Erro ao carregar role do usuário:', error)
+      logger.error('Erro ao carregar role do usuário', error)
     } finally {
       setLoading(false)
     }

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { rateLimiters } from '@/lib/middleware/rate-limit'
 import { randomBytes } from 'crypto'
+import { logger } from '@/lib/logger'
 
 // Senha padrão para novos pacientes
 const DEFAULT_PATIENT_PASSWORD = 'paciente123'
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (userError || !newUser.user) {
-      console.error('Erro ao criar usuário:', userError)
+      logger.error('Erro ao criar usuário para paciente', userError)
       return NextResponse.json(
         { error: userError?.message || 'Erro ao criar usuário' },
         { status: 500 }
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
       .eq('id', patientId)
 
     if (updateError) {
-      console.error('Erro ao vincular usuário:', updateError)
+      logger.error('Erro ao vincular usuário ao paciente', updateError)
       // Tentar limpar
       await adminClient.auth.admin.deleteUser(newUser.user.id)
       return NextResponse.json(
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (profileError && !profileError.message.includes('duplicate')) {
-      console.error('Erro ao criar perfil:', profileError)
+      logger.error('Erro ao criar perfil para paciente', profileError)
     }
 
     return NextResponse.json({
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
       message: 'Usuário criado com sucesso',
     })
   } catch (error: any) {
-    console.error('Erro ao criar usuário para paciente:', error)
+    logger.error('Erro ao criar usuário para paciente', error)
     return NextResponse.json(
       { error: error.message || 'Erro ao criar usuário' },
       { status: 500 }

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimiters } from '@/lib/middleware/rate-limit'
+import { logger } from '@/lib/logger'
 
 /**
  * API Route para criar médico com login próprio
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest) {
         })
 
         if (linkError) {
-          console.error('Erro ao gerar link de recuperação:', linkError)
+          logger.error('Erro ao gerar link de recuperação', linkError)
           // Tentar método alternativo usando API REST
           const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
           const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -232,7 +233,7 @@ export async function POST(request: NextRequest) {
 
             if (!response.ok) {
               const errorText = await response.text()
-              console.error('Erro ao enviar email via Supabase API:', errorText)
+              logger.error('Erro ao enviar email via Supabase API', undefined, { errorText })
               // Não bloquear criação do médico se email falhar
             }
           }
@@ -267,16 +268,16 @@ export async function POST(request: NextRequest) {
 
               if (!response.ok) {
                 const errorText = await response.text()
-                console.error('Erro ao enviar email via Supabase API:', errorText)
+                logger.error('Erro ao enviar email via Supabase API', undefined, { errorText })
               } else {
-                console.log('Email de convite enviado para:', email, 'com redirect_to:', redirectUrl)
+                logger.info('Email de convite enviado', { email, redirectUrl })
               }
             }
           }
         }
       } catch (emailError) {
         // Se falhar ao enviar email, não bloquear criação do médico
-        console.error('Erro ao enviar email de convite (não crítico):', emailError)
+        logger.warn('Erro ao enviar email de convite (não crítico)', { error: emailError })
       }
     }
 
@@ -289,7 +290,7 @@ export async function POST(request: NextRequest) {
       emailSent: !password, // Indica se o email foi enviado
     })
   } catch (error: any) {
-    console.error('Erro ao criar médico:', error)
+    logger.error('Erro ao criar médico', error)
     return NextResponse.json(
       { error: error.message || 'Erro ao criar médico' },
       { status: 500 }

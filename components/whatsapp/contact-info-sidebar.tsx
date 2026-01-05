@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { logger } from '@/lib/logger'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -180,7 +181,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
 
       setHumanSupportActive(humanSupport?.ativo === true)
     } catch (error) {
-      console.error('Erro ao carregar informações do contato:', error)
+      logger.error('Erro ao carregar informações do contato', error)
     } finally {
       setLoading(false)
     }
@@ -197,7 +198,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
       if (error) {
         // Se a tabela não existe, não é um erro crítico - apenas não mostrar tópicos
         if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.warn('Tabela quick_message_topics não existe. Execute a migration 027_quick_message_templates.sql')
+          logger.warn('Tabela quick_message_topics não existe. Execute a migration 027_quick_message_templates.sql')
           return
         }
         throw error
@@ -211,7 +212,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
     } catch (error: any) {
       // Melhorar log de erro
       const errorMessage = error?.message || error?.code || JSON.stringify(error)
-      console.error('Erro ao carregar tópicos:', errorMessage, error)
+      logger.error('Erro ao carregar tópicos de mensagens rápidas', error, { errorMessage })
       // Não mostrar toast para erro de tabela não existente
       if (error?.code !== '42P01' && !error?.message?.includes('does not exist')) {
         toast({
@@ -236,7 +237,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
       if (error) {
         // Se a tabela não existe, não é um erro crítico
         if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.warn('Tabela quick_messages não existe. Execute a migration 027_quick_message_templates.sql')
+          logger.warn('Tabela quick_messages não existe. Execute a migration 027_quick_message_templates.sql')
           setQuickMessages([])
           return
         }
@@ -246,7 +247,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
       setQuickMessages(data || [])
     } catch (error: any) {
       const errorMessage = error?.message || error?.code || JSON.stringify(error)
-      console.error('Erro ao carregar mensagens rápidas:', errorMessage, error)
+      logger.error('Erro ao carregar mensagens rápidas', error, { errorMessage })
       // Não mostrar toast para erro de tabela não existente
       if (error?.code !== '42P01' && !error?.message?.includes('does not exist')) {
         toast({
@@ -342,7 +343,7 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
       // Recarregar informações do contato
       await loadContactInfo()
     } catch (error: any) {
-      console.error('Erro ao converter lead:', error)
+      logger.error('Erro ao converter lead em paciente', error)
       toast({
         title: 'Erro',
         description: error.message || 'Não foi possível converter o lead em paciente',

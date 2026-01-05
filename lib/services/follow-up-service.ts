@@ -773,7 +773,7 @@ export async function notifyDoctorAboutAppointment(appointmentId: string): Promi
           if (whatsappPhone.length >= 10) {
             whatsappPhone = `${whatsappPhone}@s.whatsapp.net`
           } else {
-            console.warn(`Telefone WhatsApp inválido do médico ${doctorName}: ${doctor.whatsapp_phone}`)
+            logger.warn('Telefone WhatsApp inválido do médico', { doctorName, whatsappPhone: doctor.whatsapp_phone })
             return
           }
         }
@@ -791,16 +791,16 @@ export async function notifyDoctorAboutAppointment(appointmentId: string): Promi
           message: message,
         })
 
-        console.log(`WhatsApp enviado para médico ${doctorName} sobre agendamento ${appointmentId}`)
+        logger.info('WhatsApp enviado para médico sobre agendamento', { doctorName, appointmentId })
       } catch (whatsappError) {
-        console.error('Erro ao enviar WhatsApp para médico:', whatsappError)
+        logger.error('Erro ao enviar WhatsApp para médico', whatsappError, { doctorName, appointmentId })
         // Não lançar erro - notificação in-app já foi criada
       }
     } else {
-      console.log(`Médico ${doctorName} não tem WhatsApp cadastrado. Apenas notificação in-app criada.`)
+      logger.debug('Médico sem WhatsApp cadastrado - apenas notificação in-app criada', { doctorName, appointmentId })
     }
   } catch (error: any) {
-    console.error(`Erro ao notificar médico sobre agendamento ${appointmentId}:`, error)
+    logger.error('Erro ao notificar médico sobre agendamento', error, { appointmentId })
     // Não lançar erro - não deve bloquear criação do agendamento
   }
 }
