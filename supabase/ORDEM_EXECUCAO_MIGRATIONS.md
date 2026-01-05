@@ -208,5 +208,5 @@ Se encontrar problemas:
 1. Verifique a mensagem de erro específica
 2. Consulte a seção "Problemas Comuns" acima
 3. Verifique se todas as migrations anteriores foram executadas
-4. Execute o script `REPLICACAO_SEGURA.sql` para diagnóstico
+4. Verifique o estado do banco no Supabase Dashboard
 

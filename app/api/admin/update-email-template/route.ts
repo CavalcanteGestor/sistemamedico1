@@ -249,12 +249,8 @@ async function updateEmailTemplate() {
       templateHtml = templateHtml.replace(/Lumi/g, clinicName)
     }
 
-    // Salvar template atualizado no arquivo local
+    // Salvar template atualizado no arquivo local (versão simplificada)
     try {
-      const templatePath = join(process.cwd(), 'TEMPLATE_EMAIL_RECUPERACAO_SENHA_SIMPLIFICADO.html')
-      await writeFile(templatePath, templateHtml, 'utf-8')
-      
-      // Também atualizar o template simplificado (com estilos inline)
       const simplifiedTemplatePath = join(process.cwd(), 'TEMPLATE_EMAIL_RECUPERACAO_SENHA_SIMPLIFICADO.html')
       // Criar versão simplificada com estilos inline
       let simplifiedHtml = `<!DOCTYPE html>
