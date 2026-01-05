@@ -5,7 +5,7 @@ export const patientSchema = z.object({
   cpf: z.string().regex(/^\d{11}$/, 'CPF deve ter 11 dígitos'),
   birth_date: z.string().min(1, 'Data de nascimento é obrigatória'),
   phone: z.string().min(10, 'Telefone inválido'),
-  email: z.string().email('Email inválido'),
+  email: z.string().min(1, 'Email é obrigatório').email('Email inválido'),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),

@@ -63,12 +63,32 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, cpf, birth_date, phone, email, address, city, state, zip_code, emergency_contact, emergency_phone, allergies, chronic_conditions } = body
 
+    // Validar campos obrigatórios
+    if (!name || !cpf || !birth_date || !phone || !email) {
+      return NextResponse.json(
+        { error: 'Campos obrigatórios: nome, CPF, data de nascimento, telefone e email' },
+        { status: 400 }
+      )
+    }
+
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Email inválido' },
+        { status: 400 }
+      )
+    }
+
     // Usar admin client para criar usuário
     const adminClient = createAdminClient()
 
+    // Normalizar email antes de verificar
+    const normalizedEmail = email.trim().toLowerCase()
+
     // Verificar se o email já está em uso
     const { data: existingUsers } = await adminClient.auth.admin.listUsers()
-    const emailExists = existingUsers?.users?.some(u => u.email === email)
+    const emailExists = existingUsers?.users?.some(u => u.email === normalizedEmail)
 
     if (emailExists) {
       return NextResponse.json(
@@ -104,7 +124,7 @@ export async function POST(request: NextRequest) {
         cpf,
         birth_date,
         phone,
-        email,
+        email: normalizedEmail,
         address,
         city,
         state,
@@ -133,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     // Criar usuário no Supabase Auth (usando admin API)
     const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       password: DEFAULT_PATIENT_PASSWORD,
       email_confirm: true, // Confirma email automaticamente
       user_metadata: {
@@ -174,7 +194,7 @@ export async function POST(request: NextRequest) {
     // Criar perfil na tabela profiles (usando admin client para ignorar RLS)
     const { error: profileError } = await adminClient.from('profiles').insert({
       id: newUser.user.id,
-      email,
+      email: normalizedEmail,
       name,
       role: 'paciente',
     })
@@ -198,7 +218,7 @@ export async function POST(request: NextRequest) {
       success: true,
       patient: { ...newPatient, user_id: newUser.user.id },
       loginCredentials: {
-        email,
+        email: normalizedEmail,
         username,
         password: DEFAULT_PATIENT_PASSWORD,
         mustChangePassword: true,

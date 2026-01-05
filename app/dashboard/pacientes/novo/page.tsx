@@ -135,10 +135,19 @@ export default function NovoPacientePage() {
 
             <div className="space-y-2">
               <Label htmlFor="email">Email *</Label>
-              <Input id="email" type="email" {...register('email')} />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="email@exemplo.com"
+                required
+                {...register('email')} 
+              />
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email.message}</p>
               )}
+              <p className="text-xs text-muted-foreground">
+                O email é obrigatório para criar o cadastro e login do paciente.
+              </p>
             </div>
 
             <div className="space-y-2">
