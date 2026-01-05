@@ -13,7 +13,7 @@ Este método permite ver cada erro em tempo real e corrigir problemas imediatame
 4. Clique em **New Query**
 
 ### 2. Executar Script de Verificação (Opcional mas Recomendado)
-Antes de começar, execute o arquivo `REPLICACAO_SEGURA.sql` para verificar o estado atual do banco.
+Antes de começar, verifique o estado atual do banco no Supabase Dashboard.
 
 ### 3. Executar Migrations na Ordem
 

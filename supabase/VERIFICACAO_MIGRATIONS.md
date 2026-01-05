@@ -168,7 +168,7 @@
    - 024_insert_leads_kanban_agendamentos_data.sql
    - 030_create_desenvolvedor_user.sql
 3. **Verifique erros após cada grupo** de migrations
-4. **Use o script REPLICACAO_SEGURA.sql** antes de começar
+4. **Verifique o estado do banco** no Supabase Dashboard antes de começar
 
 ## ✅ CONCLUSÃO
 

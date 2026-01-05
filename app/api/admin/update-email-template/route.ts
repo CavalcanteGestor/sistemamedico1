@@ -78,7 +78,7 @@ async function updateEmailTemplate() {
     let templateHtml = ''
     try {
       // Tentar ler do workspace root
-      const templatePath = join(process.cwd(), 'TEMPLATE_EMAIL_RECUPERACAO_SENHA.html')
+      const templatePath = join(process.cwd(), 'TEMPLATE_EMAIL_RECUPERACAO_SENHA_SIMPLIFICADO.html')
       templateHtml = await readFile(templatePath, 'utf-8')
     } catch (error) {
       // Se não conseguir ler do arquivo, usar template padrão
@@ -251,7 +251,7 @@ async function updateEmailTemplate() {
 
     // Salvar template atualizado no arquivo local
     try {
-      const templatePath = join(process.cwd(), 'TEMPLATE_EMAIL_RECUPERACAO_SENHA.html')
+      const templatePath = join(process.cwd(), 'TEMPLATE_EMAIL_RECUPERACAO_SENHA_SIMPLIFICADO.html')
       await writeFile(templatePath, templateHtml, 'utf-8')
       
       // Também atualizar o template simplificado (com estilos inline)

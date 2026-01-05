@@ -259,7 +259,7 @@ Antes de considerar tudo pronto:
 
 - **Ordem de migrações:** `supabase/ORDEM_EXECUCAO_MIGRATIONS.md`
 - **Verificação:** `supabase/VERIFICACAO_MIGRATIONS.md`
-- **Replicação segura:** `supabase/REPLICACAO_SEGURA.sql`
+- **Verificação:** Use o Supabase Dashboard para verificar o estado do banco
 
 ---
 
