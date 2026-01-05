@@ -236,6 +236,13 @@ const allMenuGroups: MenuGroup[] = [
         description: 'Relatórios e análises',
       },
       {
+        title: 'Estatísticas',
+        href: '/dashboard/estatisticas',
+        icon: TrendingUp,
+        requiredPermission: permissions.view_reports,
+        description: 'Estatísticas de uso do sistema',
+      },
+      {
         title: 'Salas',
         href: '/dashboard/salas',
         icon: MapPin,

@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Configuração do Sentry (se DSN estiver configurado)
+  ...(process.env.NEXT_PUBLIC_SENTRY_DSN && {
+    sentry: {
+      hideSourceMaps: true,
+    },
+  }),
   images: {
     remotePatterns: [
       {
