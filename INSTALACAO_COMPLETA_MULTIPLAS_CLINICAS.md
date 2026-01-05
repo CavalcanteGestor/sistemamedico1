@@ -780,8 +780,10 @@ sudo apt install -y nodejs nginx certbot python3-certbot-nginx git
 sudo npm install -g pm2 supabase
 
 # Para cada clínica:
-cd /var/www/clinica-X
-git clone https://github.com/SEU_USUARIO/sistemamedico1.git clinica-X
+cd /var/www
+sudo git clone https://github.com/CavalcanteGestor/sistemamedico1.git clinica-X
+sudo chown -R $USER:$USER /var/www/clinica-X
+cd clinica-X
 cd clinica-X
 npm install
 cp env.production.example .env.local
