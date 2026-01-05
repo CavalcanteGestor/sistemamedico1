@@ -251,20 +251,23 @@ export function WebRTCCall({
       // 5. Detectar quando conexão é fechada (médico encerrou)
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'closed' || pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-          if (!isDoctor && connectionStatus === 'connected') {
+          if (!isDoctor) {
             // Paciente detectou que médico desconectou
-            toast({
-              title: 'Médico desconectou',
-              description: 'O médico encerrou a consulta. Você será redirecionado em instantes.',
-              variant: 'default',
-            })
-            setConnectionStatus('disconnected')
-            cleanup()
-            // Chamar onEndCall para notificar a página
-            if (onEndCall) {
-              setTimeout(() => {
-                onEndCall()
-              }, 1000)
+            const wasConnected = peerConnectionRef.current?.connectionState === 'connected' || connectionStatus === 'connected'
+            if (wasConnected) {
+              toast({
+                title: 'Médico desconectou',
+                description: 'O médico encerrou a consulta. Você será redirecionado em instantes.',
+                variant: 'default',
+              })
+              setConnectionStatus('disconnected')
+              cleanup()
+              // Chamar onEndCall para notificar a página
+              if (onEndCall) {
+                setTimeout(() => {
+                  onEndCall()
+                }, 1000)
+              }
             }
           }
         }
@@ -273,15 +276,16 @@ export function WebRTCCall({
       // 6. Detectar quando ICE connection fecha
       pc.oniceconnectionstatechange = () => {
         if (pc.iceConnectionState === 'closed' || pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-          if (!isDoctor && connectionStatus === 'connected') {
+          if (!isDoctor) {
             // Paciente detectou desconexão
-            setConnectionStatus('disconnected')
-            if (pc.iceConnectionState === 'closed') {
+            const wasConnected = peerConnectionRef.current?.iceConnectionState === 'connected' || connectionStatus === 'connected'
+            if (wasConnected && pc.iceConnectionState === 'closed') {
               toast({
                 title: 'Conexão encerrada',
                 description: 'A consulta foi encerrada pelo médico.',
                 variant: 'default',
               })
+              setConnectionStatus('disconnected')
               cleanup()
               // Chamar onEndCall para notificar a página
               if (onEndCall) {
