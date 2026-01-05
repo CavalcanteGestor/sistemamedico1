@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { Save, Building2, Mail, Phone, MapPin, Clock, Image as ImageIcon, X, Upload } from 'lucide-react'
+import { PushNotificationSetup } from '@/components/notifications/push-notification-setup'
 
 export default function ConfiguracoesPage() {
   const supabase = createClient()
@@ -524,6 +525,8 @@ export default function ConfiguracoesPage() {
             </div>
           </CardContent>
         </Card>
+
+        <PushNotificationSetup />
 
         <div className="flex justify-end">
           <Button type="submit" disabled={loading}>
