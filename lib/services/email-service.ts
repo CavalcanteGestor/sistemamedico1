@@ -16,7 +16,7 @@ interface SendInviteEmailParams {
  * - Ou usar o Supabase com template customizado via API
  */
 export async function sendDoctorInviteEmail(params: SendInviteEmailParams): Promise<void> {
-  const clinicName = params.clinicName || 'Sistema Médico'
+  const clinicName = params.clinicName || 'Lumi'
   
   // Template HTML personalizado
   const html = `
@@ -153,10 +153,10 @@ export async function getClinicName(): Promise<string> {
       .select('clinic_name')
       .maybeSingle()
     
-    return settings?.clinic_name || 'Sistema Médico'
+    return settings?.clinic_name || 'Lumi'
   } catch (error) {
     console.error('Erro ao buscar nome da clínica:', error)
-    return 'Sistema Médico'
+    return 'Lumi'
   }
 }
 

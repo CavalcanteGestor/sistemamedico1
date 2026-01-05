@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { Logo } from './logo'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -141,14 +142,7 @@ export function Sidebar() {
     return (
       <div className="flex h-screen w-72 flex-col border-r bg-gradient-to-b from-background to-muted/20">
         <div className="flex h-16 items-center border-b px-6 bg-gradient-to-r from-primary/5 to-background">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SM</span>
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              Sistema Médico
-            </h1>
-          </div>
+          <Logo size="md" />
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-sm text-muted-foreground">Carregando...</div>

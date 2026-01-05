@@ -420,7 +420,7 @@ export default function DashboardPage() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             Dashboard
           </h1>
-          <p className="text-muted-foreground mt-2">Visão geral completa do sistema médico</p>
+          <p className="text-muted-foreground mt-2">Visão geral completa do Lumi</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild>

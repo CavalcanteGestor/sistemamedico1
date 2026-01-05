@@ -67,7 +67,7 @@ async function updateDoctorInviteTemplate() {
       .maybeSingle()
 
     const logoUrl = settings?.clinic_logo_url || ''
-    const clinicName = settings?.clinic_name || 'Sistema Médico'
+    const clinicName = settings?.clinic_name || 'Lumi'
 
     // Ler template do arquivo
     let templateHtml = ''

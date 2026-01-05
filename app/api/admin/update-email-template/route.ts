@@ -71,7 +71,7 @@ async function updateEmailTemplate() {
       .single()
 
     const logoUrl = settings?.clinic_logo_url || ''
-    const clinicName = settings?.clinic_name || 'Sistema Médico'
+    const clinicName = settings?.clinic_name || 'Lumi'
 
     // Buscar template base do arquivo local
     // Tentar ler do sistema de arquivos (apenas em server-side)
