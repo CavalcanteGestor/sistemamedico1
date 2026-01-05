@@ -287,6 +287,72 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
     followup: 'Follow-up',
   }
 
+  const handleConvertToPatient = async () => {
+    if (!lead || !cpf || !birthDate || !email) {
+      toast({
+        title: 'Erro',
+        description: 'Preencha todos os campos obrigatórios: Email, CPF e data de nascimento',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      toast({
+        title: 'Erro',
+        description: 'Email inválido. Por favor, verifique o formato.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setConverting(true)
+
+      const response = await fetch('/api/leads/convert-to-patient', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          cpf: cpf.replace(/\D/g, ''),
+          birthDate,
+          email: email.trim().toLowerCase(),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao converter lead em paciente')
+      }
+
+      toast({
+        title: 'Sucesso!',
+        description: 'Lead convertido em paciente com sucesso!',
+      })
+
+      // Fechar dialog e limpar campos
+      setShowConvertDialog(false)
+      setCpf('')
+      setBirthDate('')
+      setEmail('')
+
+      // Recarregar informações do contato
+      await loadContactInfo()
+    } catch (error: any) {
+      console.error('Erro ao converter lead:', error)
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível converter o lead em paciente',
+        variant: 'destructive',
+      })
+    } finally {
+      setConverting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="w-80 border-l bg-muted/30 p-4 flex items-center justify-center">
@@ -760,75 +826,5 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
       </Dialog>
     </div>
   )
-
-  const handleConvertToPatient = async () => {
-    if (!lead || !cpf || !birthDate || !email) {
-      toast({
-        title: 'Erro',
-        description: 'Preencha todos os campos obrigatórios: Email, CPF e data de nascimento',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    // Validar formato do email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      toast({
-        title: 'Erro',
-        description: 'Email inválido. Por favor, verifique o formato.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    try {
-      setConverting(true)
-
-      const response = await fetch('/api/leads/convert-to-patient', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: lead.id,
-          cpf: cpf.replace(/\D/g, ''),
-          birthDate,
-          email: email.trim().toLowerCase(),
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        toast({
-          title: 'Lead convertido!',
-          description: 'Lead foi convertido em paciente com sucesso',
-        })
-        setShowConvertDialog(false)
-        setCpf('')
-        setBirthDate('')
-        setEmail('')
-        
-        // Recarregar informações do contato
-        await loadContactInfo()
-        
-        // Opcional: redirecionar para página do paciente
-        if (data.patientId) {
-          setTimeout(() => {
-            router.push(`/dashboard/pacientes/${data.patientId}`)
-          }, 1000)
-        }
-      } else {
-        throw new Error(data.error || 'Não foi possível converter lead')
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Erro',
-        description: error.message || 'Não foi possível converter lead',
-        variant: 'destructive',
-      })
-    } finally {
-      setConverting(false)
-    }
-  }
 }
 

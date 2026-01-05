@@ -3,6 +3,10 @@
  * Suporta Web Push API (navegador) e pode ser estendido para mobile
  */
 
+'use client'
+
+import { useState, useEffect } from 'react'
+
 interface PushNotificationOptions {
   title: string
   body: string
@@ -11,13 +15,16 @@ interface PushNotificationOptions {
   tag?: string
   requireInteraction?: boolean
   data?: any
-  actions?: NotificationAction[]
+  actions?: Array<{ action: string; title: string; icon?: string }>
 }
 
 class PushNotificationService {
   private permission: NotificationPermission = 'default'
 
   async requestPermission(): Promise<NotificationPermission> {
+    if (typeof window === 'undefined') {
+      return 'default'
+    }
     if (!('Notification' in window)) {
       console.warn('Este navegador não suporta notificações push')
       return 'denied'
@@ -31,6 +38,9 @@ class PushNotificationService {
   }
 
   async sendNotification(options: PushNotificationOptions): Promise<Notification | null> {
+    if (typeof window === 'undefined') {
+      return null
+    }
     if (!('Notification' in window)) {
       return null
     }
@@ -51,7 +61,6 @@ class PushNotificationService {
       tag: options.tag,
       requireInteraction: options.requireInteraction || false,
       data: options.data,
-      actions: options.actions,
     }
 
     return new Notification(options.title, notificationOptions)
@@ -101,6 +110,9 @@ class PushNotificationService {
   }
 
   getPermission(): NotificationPermission {
+    if (typeof window === 'undefined') {
+      return 'default'
+    }
     if (!('Notification' in window)) {
       return 'denied'
     }
@@ -108,6 +120,9 @@ class PushNotificationService {
   }
 
   isSupported(): boolean {
+    if (typeof window === 'undefined') {
+      return false
+    }
     return 'Notification' in window && 'serviceWorker' in navigator
   }
 }
@@ -117,16 +132,25 @@ export const pushNotificationService = new PushNotificationService()
 
 // Hook React para usar notificações
 export function usePushNotifications() {
+  const [permission, setPermission] = useState<NotificationPermission>('default')
+  const [isSupported, setIsSupported] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setPermission(pushNotificationService.getPermission())
+      setIsSupported(pushNotificationService.isSupported())
+    }
+  }, [])
+
   const requestPermission = async () => {
-    return await pushNotificationService.requestPermission()
+    const result = await pushNotificationService.requestPermission()
+    setPermission(result)
+    return result
   }
 
   const sendNotification = async (options: PushNotificationOptions) => {
     return await pushNotificationService.sendNotification(options)
   }
-
-  const permission = pushNotificationService.getPermission()
-  const isSupported = pushNotificationService.isSupported()
 
   return {
     requestPermission,
