@@ -9,6 +9,7 @@ import {
   LogOut,
   ChevronDown,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Logo } from './logo'
@@ -17,7 +18,11 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { getMenuForRole, type UserRole, type MenuGroup } from '@/lib/menu-config'
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void
+}
+
+export function Sidebar({ onClose }: SidebarProps = {}) {
   const pathname = usePathname()
   const router = useRouter()
   const [userRole, setUserRole] = useState<UserRole | null>(null)
@@ -152,11 +157,26 @@ export function Sidebar() {
     )
   }
 
+  const handleItemClick = () => {
+    // Fechar sidebar em mobile quando um item é clicado
+    if (onClose && window.innerWidth < 1024) {
+      onClose()
+    }
+  }
+
   return (
       <div className="flex h-screen w-72 flex-col border-r bg-gradient-to-b from-background to-muted/20 shadow-lg">
         {/* Header */}
-        <div className="flex h-16 items-center border-b px-6 bg-gradient-to-r from-primary/5 to-background">
+        <div className="flex h-16 items-center justify-between border-b px-6 bg-gradient-to-r from-primary/5 to-background">
           <Logo size="md" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="lg:hidden"
+          >
+            <X className="h-5 w-5" />
+          </Button>
         </div>
 
       {/* Navigation */}
@@ -196,6 +216,7 @@ export function Sidebar() {
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={handleItemClick}
                         className={cn(
                           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 group relative',
                           isActive

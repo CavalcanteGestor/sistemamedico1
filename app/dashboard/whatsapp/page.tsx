@@ -57,15 +57,16 @@ export default function WhatsAppPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">WhatsApp</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">WhatsApp</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Gerencie suas conversas e mensagens
           </p>
         </div>
         <Button
           variant="outline"
+          size="sm"
           onClick={() => {
             const width = 1200
             const height = 800
@@ -78,15 +79,16 @@ export default function WhatsAppPage() {
               `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no`
             )
           }}
-          className="gap-2"
+          className="gap-2 w-full sm:w-auto"
         >
           <Maximize2 className="h-4 w-4" />
-          Modo Tela Cheia
+          <span className="hidden sm:inline">Modo Tela Cheia</span>
+          <span className="sm:hidden">Tela Cheia</span>
         </Button>
       </div>
 
-      <div className="flex h-[calc(100vh-12rem)] border rounded-lg overflow-hidden">
-        <div className="w-full md:w-96 flex-shrink-0">
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-12rem)] border rounded-lg overflow-hidden">
+        <div className="w-full lg:w-96 flex-shrink-0 border-b lg:border-b-0 lg:border-r">
           <ConversationList
             selectedPhone={selectedPhone}
             onSelectConversation={handleSelectConversation}
@@ -94,7 +96,7 @@ export default function WhatsAppPage() {
             onSearchChange={setSearchQuery}
           />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 min-h-[400px] lg:min-h-0">
           {selectedPhone && (
             <WhatsAppChat 
               key={`chat-${selectedPhone}`} 
@@ -104,8 +106,11 @@ export default function WhatsAppPage() {
             />
           )}
           {!selectedPhone && (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              Selecione uma conversa para começar
+            <div className="flex items-center justify-center h-full text-gray-500 p-4 text-center">
+              <div>
+                <p className="text-lg font-medium mb-2">Selecione uma conversa</p>
+                <p className="text-sm text-muted-foreground">Escolha uma conversa da lista para começar</p>
+              </div>
             </div>
           )}
         </div>

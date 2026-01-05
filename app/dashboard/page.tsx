@@ -417,10 +417,10 @@ export default function DashboardPage() {
       {/* Header melhorado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             Dashboard
           </h1>
-          <p className="text-muted-foreground mt-2">Visão geral completa do Lumi</p>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">Visão geral completa do Lumi</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild>
@@ -433,7 +433,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Cards de Estatísticas Principais */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/dashboard/pacientes" className="group">
           <Card className="hover-lift relative overflow-hidden border-primary/20 group-hover:border-primary/40 transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors"></div>
@@ -516,7 +516,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Cards de Estatísticas Secundárias */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="hover-lift relative overflow-hidden border-primary/20 hover:border-primary/40 transition-all duration-300">
           <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full -mr-16 -mt-16"></div>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
