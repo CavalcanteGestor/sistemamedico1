@@ -165,7 +165,7 @@ export function SessionSetup({ onComplete, onCancel, userName, isDoctor = true }
       aiSummaryEnabled,
       aiSummaryPrompt: aiSummaryPrompt.trim() || undefined,
       transcriptionEnabled,
-      aiConsentGiven: true,
+      aiConsentGiven: (aiSummaryEnabled || transcriptionEnabled) ? true : false,
     })
   }
 
