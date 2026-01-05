@@ -31,6 +31,11 @@ fi
 echo -e "${GREEN}📦 Instalando/atualizando dependências...${NC}"
 npm install --production=false
 
+# Limpar arquivos problemáticos que podem causar erros no build
+echo -e "${GREEN}🧹 Limpando arquivos problemáticos...${NC}"
+rm -f sites-enabled sites-available 2>/dev/null || true
+rm -rf .next 2>/dev/null || true
+
 # Fazer backup do build anterior (opcional)
 if [ -d ".next" ]; then
     echo -e "${GREEN}💾 Fazendo backup do build anterior...${NC}"

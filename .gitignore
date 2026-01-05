@@ -58,6 +58,10 @@ logs
 *.tmp
 *.temp
 
+# Arquivos do Nginx que não devem estar no projeto
+sites-enabled
+sites-available
+
 # Backup files
 *.backup
 *.bak
@@ -80,3 +84,7 @@ test-*.ts
 
 # Scripts locais de desenvolvimento
 cleanup-build.ps1
+
+# Arquivos do Nginx que não devem estar no projeto
+sites-enabled
+sites-available
