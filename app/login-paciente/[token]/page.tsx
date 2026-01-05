@@ -231,6 +231,46 @@ function PatientLoginContent() {
     try {
       setChangingPassword(true)
 
+      // Verificar se o paciente tem email
+      if (!patient.email) {
+        throw new Error('Paciente não possui email cadastrado. Entre em contato com a clínica.')
+      }
+
+      // Verificar se o paciente tem user_id
+      if (!patient.user_id) {
+        // Tentar criar usuário novamente
+        toast({
+          title: 'Criando sua conta...',
+          description: 'Aguarde enquanto configuramos sua conta.',
+        })
+        
+        const result = await createUserForPatient(patient)
+        
+        if (!result || !result.success) {
+          throw new Error(result?.error || 'Erro ao criar conta de usuário')
+        }
+        
+        // Aguardar um pouco para garantir que o banco foi atualizado
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Recarregar dados do paciente
+        const { data: updatedPatient, error: reloadError } = await supabase
+          .from('patients')
+          .select('id, name, email, user_id, login_token, login_token_expires_at, cpf, phone')
+          .eq('id', patient.id)
+          .single()
+        
+        if (reloadError || !updatedPatient?.user_id) {
+          throw new Error('Não foi possível criar a conta. Entre em contato com a clínica.')
+        }
+        
+        // Atualizar estado do paciente
+        setPatient(updatedPatient)
+        patient.user_id = updatedPatient.user_id
+      }
+
+      console.log('Tentando fazer login com:', { email: patient.email, hasUserId: !!patient.user_id })
+
       // Primeiro fazer login com senha padrão
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: patient.email,
@@ -238,8 +278,21 @@ function PatientLoginContent() {
       })
 
       if (authError) {
-        throw new Error('Não foi possível validar as credenciais. Entre em contato com a clínica.')
+        console.error('Erro ao fazer login:', authError)
+        
+        // Se o erro for de credenciais inválidas, pode ser que a senha já foi alterada
+        if (authError.message?.includes('Invalid login credentials') || authError.message?.includes('Email not confirmed')) {
+          throw new Error('Não foi possível fazer login com a senha padrão. A senha pode já ter sido alterada. Tente fazer login normalmente ou entre em contato com a clínica.')
+        }
+        
+        throw new Error(authError.message || 'Não foi possível validar as credenciais. Entre em contato com a clínica.')
       }
+
+      if (!authData.user) {
+        throw new Error('Login realizado mas usuário não encontrado. Entre em contato com a clínica.')
+      }
+
+      console.log('Login realizado com sucesso, atualizando senha...')
 
       // Atualizar senha
       const { error: updateError } = await supabase.auth.updateUser({
@@ -249,7 +302,12 @@ function PatientLoginContent() {
         },
       })
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('Erro ao atualizar senha:', updateError)
+        throw new Error(updateError.message || 'Não foi possível alterar a senha.')
+      }
+
+      console.log('Senha atualizada com sucesso!')
 
       toast({
         title: 'Senha alterada com sucesso!',
@@ -257,7 +315,13 @@ function PatientLoginContent() {
       })
 
       // Aguardar um pouco para garantir que a sessão foi salva
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Verificar se a sessão está ativa antes de redirecionar
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('Sessão não foi criada. Tente fazer login novamente.')
+      }
 
       router.push('/portal/dashboard')
       router.refresh()
