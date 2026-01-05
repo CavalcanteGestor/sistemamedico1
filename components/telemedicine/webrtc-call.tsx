@@ -248,10 +248,56 @@ export function WebRTCCall({
         }
       }
 
-      // 5. Configurar sinalização via Supabase Realtime
+      // 5. Detectar quando conexão é fechada (médico encerrou)
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'closed' || pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          if (!isDoctor && connectionStatus === 'connected') {
+            // Paciente detectou que médico desconectou
+            toast({
+              title: 'Médico desconectou',
+              description: 'O médico encerrou a consulta. Você será redirecionado em instantes.',
+              variant: 'default',
+            })
+            setConnectionStatus('disconnected')
+            cleanup()
+            // Chamar onEndCall para notificar a página
+            if (onEndCall) {
+              setTimeout(() => {
+                onEndCall()
+              }, 1000)
+            }
+          }
+        }
+      }
+
+      // 6. Detectar quando ICE connection fecha
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'closed' || pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          if (!isDoctor && connectionStatus === 'connected') {
+            // Paciente detectou desconexão
+            setConnectionStatus('disconnected')
+            if (pc.iceConnectionState === 'closed') {
+              toast({
+                title: 'Conexão encerrada',
+                description: 'A consulta foi encerrada pelo médico.',
+                variant: 'default',
+              })
+              cleanup()
+              // Chamar onEndCall para notificar a página
+              if (onEndCall) {
+                setTimeout(() => {
+                  onEndCall()
+                }, 1000)
+              }
+            }
+          }
+        }
+      }
+
+      // 7. Configurar sinalização via Supabase Realtime
       await setupSignaling(pc)
 
-      // 6. Se for médico, marcar como conectado imediatamente (pode estar sozinho)
+      // 8. Se for médico, marcar como conectado imediatamente (pode estar sozinho)
       if (isDoctor) {
         // Médico conectado sozinho - não precisa esperar paciente
         setParticipants(1)

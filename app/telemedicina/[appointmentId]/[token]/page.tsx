@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import Link from 'next/link'
-import { ArrowLeft, Clock, User, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
+import { ArrowLeft, Clock, User, XCircle, AlertTriangle, Loader2, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -64,6 +64,80 @@ function TelemedicineLinkContent() {
       loadData()
     }
   }, [appointmentId, token])
+
+  // Monitorar status da sessão em tempo real (para detectar quando médico encerra)
+  useEffect(() => {
+    if (!session?.id || !appointmentId) return
+
+    // Configurar listener realtime para detectar quando sessão é encerrada
+    const channel = supabase
+      .channel(`telemedicine-session-${session.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'telemedicine_sessions',
+          filter: `id=eq.${session.id}`,
+        },
+        (payload) => {
+          const updatedSession = payload.new as any
+          
+          // Se sessão foi encerrada ou cancelada
+          if (updatedSession.status === 'ended' || updatedSession.status === 'cancelled') {
+            setSession(updatedSession)
+            toast({
+              title: updatedSession.status === 'ended' ? 'Consulta encerrada' : 'Consulta cancelada',
+              description: updatedSession.status === 'ended' 
+                ? 'O médico encerrou esta consulta de telemedicina.'
+                : updatedSession.cancellation_reason || 'Esta consulta foi cancelada.',
+              variant: updatedSession.status === 'ended' ? 'default' : 'destructive',
+            })
+            // Redirecionar após alguns segundos
+            setTimeout(() => {
+              router.push('/login')
+            }, 3000)
+          }
+        }
+      )
+      .subscribe()
+
+    // Polling de backup (verificar a cada 5 segundos)
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data: currentSession } = await supabase
+          .from('telemedicine_sessions')
+          .select('status, cancellation_reason')
+          .eq('id', session.id)
+          .single()
+
+        if (currentSession) {
+          if (currentSession.status === 'ended' || currentSession.status === 'cancelled') {
+            if (session.status !== currentSession.status) {
+              setSession({ ...session, status: currentSession.status, cancellation_reason: currentSession.cancellation_reason })
+              toast({
+                title: currentSession.status === 'ended' ? 'Consulta encerrada' : 'Consulta cancelada',
+                description: currentSession.status === 'ended' 
+                  ? 'O médico encerrou esta consulta de telemedicina.'
+                  : currentSession.cancellation_reason || 'Esta consulta foi cancelada.',
+                variant: currentSession.status === 'ended' ? 'default' : 'destructive',
+              })
+              setTimeout(() => {
+                router.push('/login')
+              }, 3000)
+            }
+          }
+        }
+      } catch (error) {
+        // Erro silencioso
+      }
+    }, 5000)
+
+    return () => {
+      channel.unsubscribe()
+      clearInterval(pollInterval)
+    }
+  }, [session?.id, session?.status, appointmentId, supabase, toast, router])
 
   const loadData = async () => {
     try {
@@ -187,6 +261,14 @@ function TelemedicineLinkContent() {
       if (existingSession) {
         if (existingSession.status === 'cancelled') {
           setSession(existingSession)
+        } else if (existingSession.status === 'ended') {
+          // Sessão já foi encerrada
+          setSession(existingSession)
+          toast({
+            title: 'Consulta encerrada',
+            description: 'O médico encerrou esta consulta de telemedicina.',
+            variant: 'default',
+          })
         } else {
           setSession(existingSession)
           
@@ -486,6 +568,52 @@ function TelemedicineLinkContent() {
                   </div>
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Se sessão foi encerrada
+  if (session.status === 'ended') {
+    return (
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-600">
+              <Check className="h-5 w-5" />
+              Consulta Encerrada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                <strong>Médico:</strong> {appointment.doctors?.name} - CRM: {appointment.doctors?.crm}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Data:</strong> {new Date(appointment.appointment_date).toLocaleDateString('pt-BR')} às {appointment.appointment_time}
+              </p>
+            </div>
+
+            <div className="border-t pt-4">
+              <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded">
+                <div className="flex items-start gap-2">
+                  <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium text-green-900 dark:text-green-100 mb-2">Consulta Finalizada</p>
+                    <p className="text-sm text-muted-foreground">
+                      O médico encerrou esta consulta de telemedicina. Obrigado por utilizar nossos serviços!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-center pt-4">
+              <Button onClick={() => router.push('/login')}>
+                Voltar ao Início
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -164,13 +164,20 @@ function TelemedicineContent() {
         if (response.ok) {
           toast({
             title: 'Consulta encerrada',
-            description: 'A sessão de telemedicina foi finalizada.',
+            description: 'A sessão de telemedicina foi finalizada. O paciente será notificado automaticamente.',
           })
           router.push('/dashboard/agendamentos')
+        } else {
+          const error = await response.json()
+          throw new Error(error.error || 'Erro ao encerrar sessão')
         }
       }
-    } catch (error) {
-      // Erro silencioso
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao encerrar consulta',
+        description: error.message || 'Não foi possível encerrar a sessão.',
+        variant: 'destructive',
+      })
     }
   }
 
