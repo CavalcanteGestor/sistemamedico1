@@ -55,7 +55,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: response })
   } catch (error: any) {
-    logger.error('Erro ao enviar mensagem WhatsApp', error, { phone: body.phone })
+    // Tentar obter phone do body se possível, senão usar 'unknown'
+    let phoneParam = 'unknown'
+    try {
+      const bodyClone = await request.clone().json().catch(() => ({}))
+      phoneParam = bodyClone?.phone || 'unknown'
+    } catch {
+      // Ignorar se não conseguir parsear
+    }
+    logger.error('Erro ao enviar mensagem WhatsApp', error, { phone: phoneParam })
     return NextResponse.json(
       { error: error.message || 'Erro ao enviar mensagem' },
       { status: 500 }

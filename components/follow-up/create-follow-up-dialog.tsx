@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { logger } from '@/lib/logger'
 
 interface Lead {
   id: string

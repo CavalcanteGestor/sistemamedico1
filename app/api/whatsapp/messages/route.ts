@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({ success: true, data: messages })
   } catch (error: any) {
-    logger.error('Erro ao buscar mensagens', error, { phone })
+    const phoneParam = request.nextUrl.searchParams.get('phone')
+    logger.error('Erro ao buscar mensagens', error, { phone: phoneParam || 'unknown' })
     return NextResponse.json(
       { error: error.message || 'Erro ao buscar mensagens' },
       { status: 500 }
