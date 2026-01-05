@@ -67,6 +67,8 @@ export function Sidebar({ onClose }: SidebarProps = {}) {
         let role: UserRole
         if (profile.role === 'recepcionista') {
           role = 'secretaria'
+        } else if (profile.role === 'desenvolvedor') {
+          role = 'desenvolvedor'
         } else if (profile.role === 'admin' || profile.role === 'medico' || profile.role === 'secretaria') {
           role = profile.role as UserRole
         } else {

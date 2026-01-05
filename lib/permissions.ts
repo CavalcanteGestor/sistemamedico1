@@ -3,7 +3,7 @@
  * Define o que cada tipo de usuário pode acessar
  */
 
-export type UserRole = 'admin' | 'medico' | 'secretaria'
+export type UserRole = 'admin' | 'medico' | 'secretaria' | 'desenvolvedor'
 
 export interface Permission {
   key: string
@@ -81,6 +81,10 @@ export const permissions = {
   
   // Notificações
   view_notifications: 'view_notifications',
+  
+  // Desenvolvedor - Acesso especial
+  view_logs: 'view_logs',
+  manage_system: 'manage_system',
 } as const
 
 /**
@@ -178,6 +182,11 @@ export const rolePermissions: Record<UserRole, string[]> = {
     // Relatórios - visualizar e exportar
     permissions.view_reports,
     permissions.export_reports,
+  ],
+  
+  desenvolvedor: [
+    // Desenvolvedor tem acesso TOTAL a tudo
+    ...Object.values(permissions),
   ],
 }
 

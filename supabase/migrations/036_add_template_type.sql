@@ -1,4 +1,4 @@
--- Migration 027: Adicionar suporte para templates de IA
+-- Migration 036: Adicionar suporte para templates de IA
 -- Adiciona campo para diferenciar templates fixos de templates de IA (prompts)
 
 -- Adicionar coluna tipo_template na tabela follow_up_templates

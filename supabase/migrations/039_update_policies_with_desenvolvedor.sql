@@ -1,4 +1,4 @@
--- Migration 029b: Atualizar políticas RLS para incluir 'desenvolvedor'
+-- Migration 039: Atualizar políticas RLS para incluir 'desenvolvedor'
 -- Execute esta migration APÓS a 029_add_desenvolvedor_role.sql
 -- Esta migration atualiza as políticas RLS para incluir 'desenvolvedor'
 

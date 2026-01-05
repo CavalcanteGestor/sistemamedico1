@@ -35,7 +35,7 @@ export default function WhatsAppFullscreenPage() {
         .eq('id', user.id)
         .single()
 
-      if (!profile || !['admin', 'medico', 'recepcionista'].includes(profile.role)) {
+      if (!profile || !['admin', 'medico', 'recepcionista', 'desenvolvedor'].includes(profile.role)) {
         router.push('/dashboard')
         return
       }

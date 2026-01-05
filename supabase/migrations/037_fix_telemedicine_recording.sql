@@ -1,4 +1,4 @@
--- Migration 027: Corrigir gravação de telemedicina
+-- Migration 037: Corrigir gravação de telemedicina
 -- Adiciona campos faltantes e atualiza bucket para suportar vídeos
 
 -- Adicionar campos faltantes de gravação (se não existirem)

@@ -1,4 +1,4 @@
--- Migration 026: Tabela para transcrições de telemedicina
+-- Migration 034: Tabela para transcrições de telemedicina
 -- Armazena transcrições da conversa durante a consulta
 
 CREATE TABLE IF NOT EXISTS telemedicine_transcriptions (

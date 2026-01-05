@@ -1,4 +1,4 @@
--- Migration 027: Tabelas para Mensagens Rápidas com Tópicos
+-- Migration 038: Tabelas para Mensagens Rápidas com Tópicos
 -- Permite criar tópicos e mensagens rápidas personalizadas
 
 -- IMPORTANTE: Se você quiser usar 'desenvolvedor' nas políticas RLS abaixo,

@@ -35,6 +35,13 @@ import {
   Brain,
   Zap,
   ClipboardList,
+  Terminal,
+  FileCode,
+  Bug,
+  Database,
+  Code,
+  Server,
+  Shield,
 } from 'lucide-react'
 import { permissions, hasPermission, type UserRole } from './permissions'
 
@@ -229,6 +236,13 @@ const allMenuGroups: MenuGroup[] = [
     title: '⚙️ Administrativo',
     icon: Settings,
     items: [
+      {
+        title: 'Admin',
+        href: '/dashboard/admin',
+        icon: Shield,
+        requiredPermission: permissions.manage_settings,
+        description: 'Painel administrativo',
+      },
       {
         title: 'Financeiro',
         href: '/dashboard/financeiro',
@@ -510,10 +524,243 @@ const medicoMenuGroups: MenuGroup[] = [
 ]
 
 /**
+ * Menu específico para desenvolvedor - Acesso total + ferramentas de desenvolvimento
+ */
+const desenvolvedorMenuGroups: MenuGroup[] = [
+  {
+    title: 'Início',
+    icon: Home,
+    items: [
+      {
+        title: 'Dashboard Dev',
+        href: '/dashboard/desenvolvedor',
+        icon: Code,
+        description: 'Painel de desenvolvedor',
+      },
+      {
+        title: 'Dashboard',
+        href: '/dashboard',
+        icon: LayoutDashboard,
+        description: 'Visão geral do sistema',
+      },
+      {
+        title: 'Notificações',
+        href: '/dashboard/notificacoes',
+        icon: Bell,
+        description: 'Central de notificações',
+      },
+      {
+        title: 'Busca Global',
+        href: '/dashboard/busca',
+        icon: Search,
+        description: 'Buscar em todo o sistema',
+      },
+    ],
+  },
+  {
+    title: '🔧 Desenvolvimento',
+    icon: Code,
+    items: [
+      {
+        title: 'Logs do Sistema',
+        href: '/dashboard/desenvolvedor/logs',
+        icon: Terminal,
+        description: 'Visualizar logs e erros',
+      },
+      {
+        title: 'Status do Sistema',
+        href: '/dashboard/desenvolvedor',
+        icon: Activity,
+        description: 'Monitoramento e saúde',
+      },
+      {
+        title: 'Banco de Dados',
+        href: '/dashboard/desenvolvedor/database',
+        icon: Database,
+        description: 'Ferramentas de DB',
+      },
+    ],
+  },
+  {
+    title: '🤖 IA & Conversas',
+    icon: Brain,
+    items: [
+      {
+        title: 'Leads',
+        href: '/dashboard/leads',
+        icon: UserPlus,
+        description: 'Gestão de leads e prospects',
+      },
+      {
+        title: 'WhatsApp',
+        href: '/dashboard/whatsapp',
+        icon: MessageCircle,
+        description: 'Conversas e mensagens',
+      },
+      {
+        title: 'Funil Kanban',
+        href: '/dashboard/leads/funil',
+        icon: Kanban,
+        description: 'Pipeline visual de vendas',
+      },
+      {
+        title: 'Criar Follow-up',
+        href: '/dashboard/leads/follow-up/novo',
+        icon: PlusCircle,
+        description: 'Nova campanha de follow-up',
+      },
+      {
+        title: 'Dashboard Follow-up',
+        href: '/dashboard/leads/follow-up/dashboard',
+        icon: Activity,
+        description: 'Métricas e estatísticas',
+      },
+      {
+        title: 'Histórico Follow-up',
+        href: '/dashboard/leads/follow-up/historico',
+        icon: History,
+        description: 'Todos os follow-ups enviados',
+      },
+      {
+        title: 'Templates Follow-up',
+        href: '/dashboard/leads/follow-up/templates',
+        icon: FileText,
+        description: 'Gerenciar templates de mensagens',
+      },
+      {
+        title: 'Orçamentos',
+        href: '/dashboard/orcamentos',
+        icon: Receipt,
+        description: 'Gestão de orçamentos',
+      },
+    ],
+  },
+  {
+    title: '🏥 Clínica',
+    icon: Stethoscope,
+    items: [
+      {
+        title: 'Pacientes',
+        href: '/dashboard/pacientes',
+        icon: Users,
+        description: 'Cadastro de pacientes',
+      },
+      {
+        title: 'Médicos',
+        href: '/dashboard/medicos',
+        icon: UserCheck,
+        description: 'Cadastro de médicos',
+      },
+      {
+        title: 'Agendamentos',
+        href: '/dashboard/agendamentos',
+        icon: Calendar,
+        description: 'Calendário e agendamentos',
+      },
+      {
+        title: 'Consultas',
+        href: '/dashboard/consultas',
+        icon: ClipboardList,
+        description: 'Consultas presenciais e online',
+      },
+      {
+        title: 'Telemedicina',
+        href: '/dashboard/telemedicina',
+        icon: Video,
+        description: 'Consultas online',
+      },
+      {
+        title: 'Prontuários',
+        href: '/dashboard/prontuario',
+        icon: Stethoscope,
+        description: 'Histórico médico completo',
+      },
+      {
+        title: 'Prescrições',
+        href: '/dashboard/prescricoes',
+        icon: Pill,
+        description: 'Receitas médicas',
+      },
+      {
+        title: 'Atestados',
+        href: '/dashboard/atestados',
+        icon: FileCheck,
+        description: 'Atestados e declarações',
+      },
+      {
+        title: 'Exames',
+        href: '/dashboard/exames',
+        icon: FileSearch,
+        description: 'Resultados de exames',
+      },
+      {
+        title: 'Estudos de Caso',
+        href: '/dashboard/estudos-caso',
+        icon: FileText,
+        description: 'Casos clínicos',
+      },
+    ],
+  },
+  {
+    title: '⚙️ Administrativo',
+    icon: Settings,
+    items: [
+      {
+        title: 'Admin',
+        href: '/dashboard/admin',
+        icon: Shield,
+        description: 'Painel administrativo',
+      },
+      {
+        title: 'Financeiro',
+        href: '/dashboard/financeiro',
+        icon: DollarSign,
+        description: 'Contas e receitas',
+      },
+      {
+        title: 'Relatórios',
+        href: '/dashboard/relatorios',
+        icon: BarChart3,
+        description: 'Relatórios e análises',
+      },
+      {
+        title: 'Estatísticas',
+        href: '/dashboard/estatisticas',
+        icon: TrendingUp,
+        description: 'Estatísticas de uso do sistema',
+      },
+      {
+        title: 'Salas',
+        href: '/dashboard/salas',
+        icon: MapPin,
+        description: 'Gerenciar salas e ambientes',
+      },
+      {
+        title: 'Usuários',
+        href: '/dashboard/usuarios',
+        icon: Users,
+        description: 'Gerenciar usuários do sistema',
+      },
+      {
+        title: 'Configurações',
+        href: '/dashboard/configuracoes',
+        icon: Settings,
+        description: 'Configurações gerais',
+      },
+    ],
+  },
+]
+
+/**
  * Retorna o menu filtrado por role
  */
 export function getMenuForRole(role: UserRole | null): MenuGroup[] {
   if (!role) return []
+
+  // Menu específico para desenvolvedor (acesso total)
+  if (role === 'desenvolvedor') {
+    return desenvolvedorMenuGroups
+  }
 
   // Menu específico para médicos
   if (role === 'medico') {

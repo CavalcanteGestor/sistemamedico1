@@ -1,4 +1,4 @@
--- Migration 027: Adiciona campos de agendamento e recorrência para follow-ups
+-- Migration 035: Adiciona campos de agendamento e recorrência para follow-ups
 
 -- Adicionar campos de agendamento e recorrência
 DO $$
