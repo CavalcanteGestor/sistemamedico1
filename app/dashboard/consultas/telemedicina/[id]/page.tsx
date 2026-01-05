@@ -117,14 +117,40 @@ function TelemedicineContent() {
   }
 
   const copyRoomUrl = async () => {
-    if (session?.room_url) {
-      await navigator.clipboard.writeText(session.room_url)
+    try {
+      // Gerar link correto do paciente usando a API
+      const response = await fetch('/api/telemedicine/generate-patient-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appointmentId,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao gerar link')
+      }
+
+      const { link } = await response.json()
+      
+      // Copiar link HTTP/HTTPS válido
+      await navigator.clipboard.writeText(link)
       setCopied(true)
       toast({
         title: 'Link copiado!',
         description: 'O link da consulta foi copiado para a área de transferência.',
       })
       setTimeout(() => setCopied(false), 2000)
+    } catch (error: any) {
+      console.error('Erro ao copiar link:', error)
+      toast({
+        title: 'Erro ao copiar link',
+        description: error.message || 'Não foi possível gerar o link. Verifique se o paciente tem token de login.',
+        variant: 'destructive',
+      })
     }
   }
 
