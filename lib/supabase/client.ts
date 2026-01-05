@@ -10,6 +10,13 @@ export function createClient() {
     )
   }
 
-  return createBrowserClient(supabaseUrl, supabaseKey)
+  return createBrowserClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+    },
+  })
 }
 

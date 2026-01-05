@@ -41,9 +41,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    user = authUser
+  } catch (error) {
+    // Ignorar erros de autenticação no middleware (pode ser sessão expirada)
+    console.debug('Middleware: Erro ao obter usuário (pode ser normal):', error instanceof Error ? error.message : 'Unknown error')
+  }
 
   // Rotas públicas (páginas)
   const publicRoutes = ['/login', '/register', '/forgot-password', '/login-paciente', '/api/auth/create-user-for-patient']
@@ -62,11 +69,18 @@ export async function middleware(request: NextRequest) {
   // Se está autenticado e tentando acessar rota pública (apenas páginas, não APIs)
   if (user && isPublicPageRoute && !isApiRoute) {
     // Verificar role do usuário para redirecionar corretamente
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
+    let profile = null
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+      profile = data
+    } catch (error) {
+      // Ignorar erros ao buscar perfil no middleware
+      console.debug('Middleware: Erro ao buscar perfil:', error instanceof Error ? error.message : 'Unknown error')
+    }
 
     const role = profile?.role || 'paciente'
 
