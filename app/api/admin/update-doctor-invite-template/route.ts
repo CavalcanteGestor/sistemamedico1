@@ -148,7 +148,7 @@ async function updateDoctorInviteTemplate() {
     return NextResponse.json(
       { 
         error: error.message || 'Erro ao atualizar template de email',
-        template: generateInlineTemplate('Sistema Médico', ''),
+        template: generateInlineTemplate('Lumi', ''),
       },
       { status: 500 }
     )
@@ -161,7 +161,7 @@ function generateInlineTemplate(clinicName: string, logoUrl: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Convite - Sistema Médico</title>
+  <title>Convite - ${clinicName}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">

@@ -104,7 +104,7 @@ export default function WhatsAppFullscreenPage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-gray-900">WhatsApp</h1>
-            <p className="text-xs text-gray-500">Sistema Médico</p>
+            <p className="text-xs text-gray-500">Lumi</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
