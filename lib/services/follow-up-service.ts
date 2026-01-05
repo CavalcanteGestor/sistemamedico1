@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendWhatsAppMessage } from './whatsapp-service'
+import { logger } from '@/lib/logger'
 import {
   getLeadFullContext,
   analyzeLeadSentiment,
