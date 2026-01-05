@@ -53,6 +53,8 @@ MCPSLumi.json
 # Logs
 logs
 *.log
+# Exceção: página de logs do desenvolvedor
+!app/dashboard/desenvolvedor/logs/
 
 # Arquivos temporários
 *.tmp
