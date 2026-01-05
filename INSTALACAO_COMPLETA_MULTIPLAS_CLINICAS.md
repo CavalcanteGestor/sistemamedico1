@@ -87,8 +87,7 @@ No Dashboard do Supabase:
 cd /var/www
 
 # Clonar repositório
-sudo git clone https://github.com/SEU_USUARIO/sistemamedico1.git clinica-1
-# (Substitua SEU_USUARIO pelo seu usuário do GitHub)
+sudo git clone https://github.com/CavalcanteGestor/sistemamedico1.git clinica-1
 
 # Dar permissões
 sudo chown -R $USER:$USER /var/www/clinica-1
@@ -178,8 +177,9 @@ supabase login
 
 # Linkar ao projeto
 cd /var/www/clinica-1
-supabase link --project-ref abc123xyz
-# (Substitua abc123xyz pelo Project Reference real)
+supabase link --project-ref SEU_PROJECT_REF
+# Substitua SEU_PROJECT_REF pelo Project Reference do Supabase
+# Exemplo: se a URL é https://abc123xyz.supabase.co, o Project Ref é "abc123xyz"
 
 # Confirmar quando pedir
 ```
@@ -397,7 +397,7 @@ curl http://localhost:3001
 ```bash
 # Clonar para nova clínica
 cd /var/www
-sudo git clone https://github.com/SEU_USUARIO/sistemamedico1.git clinica-2
+sudo git clone https://github.com/CavalcanteGestor/sistemamedico1.git clinica-2
 
 # Dar permissões
 sudo chown -R $USER:$USER /var/www/clinica-2
@@ -420,11 +420,15 @@ nano .env.local
 **Conteúdo (ajustar para clínica-2):**
 
 ```env
-# Supabase - Clínica 2
-NEXT_PUBLIC_SUPABASE_URL=https://def456uvw.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...chave_da_clinica_2
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...service_role_clinica_2
-NEXT_PUBLIC_SUPABASE_PROJECT_REF=def456uvw
+# ============================================
+# SUPABASE - Clínica 2
+# ============================================
+# Obtenha estas credenciais do projeto Supabase da clínica 2
+# Cada clínica deve ter seu próprio projeto Supabase!
+NEXT_PUBLIC_SUPABASE_URL=https://SEU_PROJECT_REF_CLINICA_2.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...chave_anon_da_clinica_2
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...service_role_da_clinica_2
+NEXT_PUBLIC_SUPABASE_PROJECT_REF=SEU_PROJECT_REF_CLINICA_2
 
 # URL
 NEXT_PUBLIC_APP_URL=https://clinica2.seudominio.com
@@ -440,8 +444,8 @@ EVOLUTION_INSTANCE_NAME=clinica-2
 ### 3.6 Linkar e Aplicar Migrations
 
 ```bash
-# Linkar projeto
-supabase link --project-ref def456uvw
+# Linkar projeto (usar Project Ref da clínica 2)
+supabase link --project-ref SEU_PROJECT_REF_CLINICA_2
 
 # Aplicar migrations
 supabase db push
