@@ -895,17 +895,17 @@ export default function AgendamentosPage() {
             <DialogTitle>Confirmar Exclusão</DialogTitle>
             <DialogDescription>
               Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
-              {selectedAppointment && (
-                <div className="mt-4 p-3 bg-muted rounded-md">
-                  <p className="font-medium">
-                    {new Date(selectedAppointment.appointment_date).toLocaleDateString('pt-BR')} às {selectedAppointment.appointment_time}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selectedAppointment.patients?.name} - {selectedAppointment.doctors?.name}
-                  </p>
-                </div>
-              )}
             </DialogDescription>
+            {selectedAppointment && (
+              <div className="mt-4 p-3 bg-muted rounded-md">
+                <p className="font-medium">
+                  {new Date(selectedAppointment.appointment_date).toLocaleDateString('pt-BR')} às {selectedAppointment.appointment_time}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedAppointment.patients?.name} - {selectedAppointment.doctors?.name}
+                </p>
+              </div>
+            )}
           </DialogHeader>
           <DialogFooter>
             <Button
@@ -936,22 +936,22 @@ export default function AgendamentosPage() {
             <DialogTitle>Alterar Status do Agendamento</DialogTitle>
             <DialogDescription>
               Selecione o novo status para este agendamento.
-              {selectedAppointment && (
-                <div className="mt-4 p-3 bg-muted rounded-md">
-                  <p className="font-medium">
-                    {new Date(selectedAppointment.appointment_date).toLocaleDateString('pt-BR')} às {selectedAppointment.appointment_time}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selectedAppointment.patients?.name} - {selectedAppointment.doctors?.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Status atual: <Badge variant={getStatusBadge(selectedAppointment.status) as any}>
-                      {getStatusLabel(selectedAppointment.status)}
-                    </Badge>
-                  </p>
-                </div>
-              )}
             </DialogDescription>
+            {selectedAppointment && (
+              <div className="mt-4 p-3 bg-muted rounded-md">
+                <p className="font-medium">
+                  {new Date(selectedAppointment.appointment_date).toLocaleDateString('pt-BR')} às {selectedAppointment.appointment_time}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedAppointment.patients?.name} - {selectedAppointment.doctors?.name}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Status atual: <Badge variant={getStatusBadge(selectedAppointment.status) as any}>
+                    {getStatusLabel(selectedAppointment.status)}
+                  </Badge>
+                </p>
+              </div>
+            )}
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">

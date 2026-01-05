@@ -517,7 +517,7 @@ export default function TelemedicinaPage() {
 
       // Fechar modal e redirecionar
       setShowImmediateDialog(false)
-      router.push(`/dashboard/consultas/telemedicina/${appointment.id}`)
+      router.push(`/dashboard/consultas/detalhes/${appointment.id}`)
     } catch (error: any) {
       console.error('Erro ao iniciar consulta imediata:', error)
       toast({
@@ -1358,7 +1358,7 @@ export default function TelemedicinaPage() {
                             <div className="flex flex-col gap-2 ml-4">
                               {session.status === 'active' || session.status === 'pending' ? (
                                 <>
-                                  <Link href={`/dashboard/consultas/telemedicina/${appointment.id}`}>
+                                  <Link href={`/dashboard/consultas/detalhes/${appointment.id}`}>
                                     <Button>
                                       <Video className="h-4 w-4 mr-2" />
                                       {session.status === 'active' ? 'Entrar' : 'Iniciar'}
@@ -1397,7 +1397,7 @@ export default function TelemedicinaPage() {
                                     </Button>
                                   )}
                                   {session.ai_summary && (
-                                    <Link href={`/dashboard/consultas/telemedicina/${appointment.id}`}>
+                                    <Link href={`/dashboard/consultas/detalhes/${appointment.id}`}>
                                       <Button variant="outline" size="sm">
                                         <Sparkles className="h-4 w-4 mr-2" />
                                         Ver Resumo

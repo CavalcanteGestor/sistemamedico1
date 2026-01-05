@@ -14,9 +14,11 @@ import { NotificationList } from './notification-list'
 
 export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
+  const [mounted, setMounted] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
+    setMounted(true)
     loadUnreadCount()
     
     // Assinar mudanças em tempo real
@@ -70,6 +72,15 @@ export function NotificationBell() {
     } catch (error) {
       console.error('Erro ao carregar contador de notificações:', error)
     }
+  }
+
+  // Evitar erro de hidratação renderizando apenas no cliente
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="relative">
+        <Bell className="h-5 w-5" />
+      </Button>
+    )
   }
 
   return (

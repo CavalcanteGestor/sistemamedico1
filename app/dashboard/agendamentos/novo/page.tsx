@@ -259,7 +259,7 @@ function NovoAgendamentoContent() {
               description: 'Redirecionando para a consulta...',
             })
             // Redirecionar para a sessão de telemedicina
-            router.push(`/dashboard/consultas/telemedicina/${appointment.id}`)
+            router.push(`/dashboard/consultas/detalhes/${appointment.id}`)
             return
           }
         } catch (telemedicineError) {

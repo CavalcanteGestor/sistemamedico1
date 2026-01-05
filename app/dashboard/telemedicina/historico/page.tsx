@@ -365,7 +365,7 @@ export default function TelemedicinaHistoricoPage() {
                           variant="outline"
                           asChild
                         >
-                          <Link href={`/dashboard/consultas/telemedicina/${session.appointments?.id}`}>
+                          <Link href={`/dashboard/consultas/detalhes/${session.appointments?.id}`}>
                             <Video className="h-4 w-4 mr-2" />
                             Ver Detalhes
                           </Link>
@@ -387,7 +387,7 @@ export default function TelemedicinaHistoricoPage() {
                           variant="outline"
                           asChild
                         >
-                          <Link href={`/dashboard/consultas/telemedicina/${session.appointments?.id}`}>
+                          <Link href={`/dashboard/consultas/detalhes/${session.appointments?.id}`}>
                             <FileText className="h-4 w-4 mr-2" />
                             Ver Resumo
                           </Link>

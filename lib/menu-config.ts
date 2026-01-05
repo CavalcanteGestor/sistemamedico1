@@ -34,6 +34,7 @@ import {
   Activity,
   Brain,
   Zap,
+  ClipboardList,
 } from 'lucide-react'
 import { permissions, hasPermission, type UserRole } from './permissions'
 
@@ -174,6 +175,13 @@ const allMenuGroups: MenuGroup[] = [
         description: 'Calendário e agendamentos',
       },
       {
+        title: 'Consultas',
+        href: '/dashboard/consultas',
+        icon: ClipboardList,
+        requiredPermission: permissions.view_appointments,
+        description: 'Consultas presenciais e online',
+      },
+      {
         title: 'Telemedicina',
         href: '/dashboard/telemedicina',
         icon: Video,
@@ -306,6 +314,12 @@ const secretariaMenuGroups: MenuGroup[] = [
         description: 'Calendário e gerenciamento de consultas',
       },
       {
+        title: 'Consultas',
+        href: '/dashboard/consultas',
+        icon: ClipboardList,
+        description: 'Consultas presenciais e online',
+      },
+      {
         title: 'Telemedicina',
         href: '/dashboard/telemedicina',
         icon: Video,
@@ -430,6 +444,12 @@ const medicoMenuGroups: MenuGroup[] = [
         href: '/dashboard/agendamentos',
         icon: Calendar,
         description: 'Suas consultas agendadas',
+      },
+      {
+        title: 'Consultas',
+        href: '/dashboard/consultas',
+        icon: ClipboardList,
+        description: 'Consultas presenciais e online',
       },
       {
         title: 'Telemedicina',

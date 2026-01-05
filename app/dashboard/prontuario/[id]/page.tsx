@@ -5,13 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AnamnesisForm } from '@/components/forms/anamnesis-form'
 import { PhysicalExamForm } from '@/components/forms/physical-exam-form'
 import { FileUpload } from '@/components/forms/file-upload'
 import { useToast } from '@/hooks/use-toast'
 import Link from 'next/link'
-import { ArrowLeft, Image as ImageIcon, FileText, Download, Trash2, Plus, Edit, Eye } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, FileText, Download, Trash2, Plus, Edit, Eye, Pill, FileSearch, Calendar, Clock, User, Stethoscope } from 'lucide-react'
 import type { AnamnesisInput } from '@/lib/validations/anamnesis'
 import type { PhysicalExamInput } from '@/lib/validations/physical-exam'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,8 @@ export default function ProntuarioPage() {
   const [evolutions, setEvolutions] = useState<any[]>([])
   const [photos, setPhotos] = useState<any[]>([])
   const [documents, setDocuments] = useState<any[]>([])
+  const [prescriptions, setPrescriptions] = useState<any[]>([])
+  const [exams, setExams] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingAnamnesis, setEditingAnamnesis] = useState(false)
@@ -128,6 +131,54 @@ export default function ProntuarioPage() {
         .order('created_at', { ascending: false })
 
       setDocuments(documentsData || [])
+
+      // Carregar prescrições relacionadas ao prontuário ou ao paciente
+      const { data: prescriptionsData } = await supabase
+        .from('prescriptions')
+        .select(`
+          *,
+          doctors:doctor_id (
+            id,
+            name,
+            crm
+          ),
+          prescription_items (
+            id,
+            medication_name,
+            dosage,
+            frequency,
+            duration,
+            instructions
+          )
+        `)
+        .eq('patient_id', record.patient_id)
+        .order('prescription_date', { ascending: false })
+
+      setPrescriptions(prescriptionsData || [])
+
+      // Carregar exames relacionados ao paciente
+      const { data: examsData } = await supabase
+        .from('exams')
+        .select(`
+          *,
+          doctors:doctor_id (
+            id,
+            name,
+            crm
+          ),
+          exam_results (
+            id,
+            file_url,
+            file_name,
+            file_type,
+            report,
+            created_at
+          )
+        `)
+        .eq('patient_id', record.patient_id)
+        .order('requested_date', { ascending: false })
+
+      setExams(examsData || [])
     } catch (error: any) {
       console.error('Erro ao carregar prontuário:', error)
       toast({
@@ -465,6 +516,8 @@ export default function ProntuarioPage() {
         <TabsList>
           <TabsTrigger value="anamnesis">Anamnese</TabsTrigger>
           <TabsTrigger value="physical">Exame Físico</TabsTrigger>
+          <TabsTrigger value="prescriptions">Prescrições</TabsTrigger>
+          <TabsTrigger value="exams">Exames</TabsTrigger>
           <TabsTrigger value="photos">Fotos Antes/Depois</TabsTrigger>
           <TabsTrigger value="documents">Documentos</TabsTrigger>
           <TabsTrigger value="evolutions">Evoluções</TabsTrigger>
@@ -830,6 +883,201 @@ export default function ProntuarioPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="prescriptions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Pill className="h-5 w-5" />
+                Prescrições Médicas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {prescriptions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhuma prescrição encontrada para este prontuário.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {prescriptions.map((prescription) => (
+                    <Card key={prescription.id} className="border-l-4 border-l-primary">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-lg">
+                              Prescrição - {new Date(prescription.prescription_date).toLocaleDateString('pt-BR')}
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Dr(a). {prescription.doctors?.name} - CRM: {prescription.doctors?.crm}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {prescription.signed && (
+                              <Badge variant="default">Assinada</Badge>
+                            )}
+                            <Link href={`/dashboard/prescricoes/${prescription.id}`}>
+                              <Button variant="outline" size="sm">
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver Detalhes
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {prescription.prescription_items && prescription.prescription_items.length > 0 ? (
+                          <div className="space-y-3">
+                            {prescription.prescription_items.map((item: any, index: number) => (
+                              <div key={item.id} className="border-l-2 border-l-primary/30 pl-4 py-2">
+                                <p className="font-semibold">
+                                  {index + 1}. {item.medication_name}
+                                </p>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground mt-1">
+                                  <div>
+                                    <span className="font-medium">Dosagem:</span> {item.dosage}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Frequência:</span> {item.frequency}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Duração:</span> {item.duration}
+                                  </div>
+                                </div>
+                                {item.instructions && (
+                                  <p className="text-sm mt-2 text-muted-foreground">
+                                    <span className="font-medium">Instruções:</span> {item.instructions}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Nenhum medicamento cadastrado.</p>
+                        )}
+                        {prescription.notes && (
+                          <div className="mt-4 pt-4 border-t">
+                            <p className="text-sm">
+                              <span className="font-medium">Observações:</span> {prescription.notes}
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="exams" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSearch className="h-5 w-5" />
+                Exames Solicitados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {exams.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum exame encontrado para este paciente.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {exams.map((exam) => (
+                    <Card key={exam.id} className="border-l-4 border-l-blue-500">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-lg">{exam.exam_type || 'Exame'}</CardTitle>
+                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-4 w-4" />
+                                Solicitado: {new Date(exam.requested_date).toLocaleDateString('pt-BR')}
+                              </div>
+                              {exam.exam_date && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-4 w-4" />
+                                  Realizado: {new Date(exam.exam_date).toLocaleDateString('pt-BR')}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <Stethoscope className="h-4 w-4" />
+                                {exam.doctors?.name} - CRM: {exam.doctors?.crm}
+                              </div>
+                            </div>
+                          </div>
+                          <Badge
+                            variant={
+                              exam.status === 'completed'
+                                ? 'default'
+                                : exam.status === 'in_progress'
+                                ? 'secondary'
+                                : 'outline'
+                            }
+                          >
+                            {exam.status === 'completed'
+                              ? 'Concluído'
+                              : exam.status === 'in_progress'
+                              ? 'Em Andamento'
+                              : exam.status === 'requested'
+                              ? 'Solicitado'
+                              : exam.status}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {exam.notes && (
+                          <p className="text-sm text-muted-foreground mb-4">
+                            <span className="font-medium">Observações:</span> {exam.notes}
+                          </p>
+                        )}
+                        {exam.exam_results && exam.exam_results.length > 0 && (
+                          <div className="space-y-2 mt-4">
+                            <p className="font-medium text-sm">Resultados:</p>
+                            {exam.exam_results.map((result: any) => (
+                              <div key={result.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="h-5 w-5 text-muted-foreground" />
+                                  <div>
+                                    <p className="font-medium">{result.file_name}</p>
+                                    {result.report && (
+                                      <p className="text-sm text-muted-foreground line-clamp-1">{result.report}</p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(result.created_at).toLocaleDateString('pt-BR')}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(result.file_url, '_blank')}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Baixar
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-4">
+                          <Link href={`/dashboard/exames/${exam.id}`}>
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4 mr-2" />
+                              Ver Detalhes
+                            </Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

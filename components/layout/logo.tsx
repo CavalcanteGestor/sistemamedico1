@@ -26,6 +26,7 @@ export function Logo({ className = '', showText = true, size = 'md' }: LogoProps
       <div className={`${sizeClasses[size]} relative flex-shrink-0`}>
         <Image
           src="/logo.png"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           alt="Lumi Logo"
           fill
           className="object-contain"
