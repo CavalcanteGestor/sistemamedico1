@@ -245,8 +245,8 @@ async function updateEmailTemplate() {
     }
 
     // Atualizar nome da clínica no template (se necessário)
-    if (!templateHtml.includes(clinicName) || templateHtml.includes('Sistema Médico')) {
-      templateHtml = templateHtml.replace(/Sistema Médico/g, clinicName)
+    if (!templateHtml.includes(clinicName) || templateHtml.includes('Lumi')) {
+      templateHtml = templateHtml.replace(/Lumi/g, clinicName)
     }
 
     // Salvar template atualizado no arquivo local
