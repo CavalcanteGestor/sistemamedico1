@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -103,6 +104,90 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Criar usuário no Supabase Auth para o paciente
+    const adminClient = createAdminClient()
+    const DEFAULT_PATIENT_PASSWORD = 'paciente123'
+    
+    // Gerar username baseado no nome
+    const generateUsername = (name: string, patientId: string) => {
+      const normalized = name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .substring(0, 20)
+      const idSuffix = patientId.substring(patientId.length - 4)
+      return `${normalized}${idSuffix}`
+    }
+
+    const username = generateUsername(lead.nome, newPatient.id)
+
+    // Verificar se email já está em uso no Auth
+    const { data: existingUsers } = await adminClient.auth.admin.listUsers()
+    const emailExists = existingUsers?.users?.some(u => u.email === email.trim().toLowerCase())
+
+    if (emailExists) {
+      // Se email já existe, apenas atualizar o paciente com user_id se possível
+      const existingUser = existingUsers.users.find(u => u.email === email.trim().toLowerCase())
+      if (existingUser) {
+        await supabase
+          .from('patients')
+          .update({ user_id: existingUser.id })
+          .eq('id', newPatient.id)
+      }
+    } else {
+      // Criar novo usuário
+      const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
+        email: email.trim().toLowerCase(),
+        password: DEFAULT_PATIENT_PASSWORD,
+        email_confirm: true,
+        user_metadata: {
+          name: lead.nome,
+          role: 'paciente',
+          username,
+          must_change_password: true,
+        },
+      })
+
+      if (userError || !newUser.user) {
+        console.error('Erro ao criar usuário:', userError)
+        // Se falhar ao criar usuário, deleta o paciente criado
+        await supabase.from('patients').delete().eq('id', newPatient.id)
+        return NextResponse.json(
+          { error: userError?.message || 'Erro ao criar usuário para o paciente' },
+          { status: 500 }
+        )
+      }
+
+      // Atualizar paciente com user_id
+      await supabase
+        .from('patients')
+        .update({ user_id: newUser.user.id })
+        .eq('id', newPatient.id)
+
+      // Criar perfil
+      await adminClient.from('profiles').upsert({
+        id: newUser.user.id,
+        email: email.trim().toLowerCase(),
+        name: lead.nome,
+        role: 'paciente',
+      })
+    }
+
+    // Gerar token de login para o paciente
+    const { randomBytes } = await import('crypto')
+    const loginToken = randomBytes(32).toString('hex')
+    const tokenExpiresAt = new Date()
+    tokenExpiresAt.setFullYear(tokenExpiresAt.getFullYear() + 1)
+
+    await supabase
+      .from('patients')
+      .update({
+        login_token: loginToken,
+        login_token_expires_at: tokenExpiresAt.toISOString(),
+      })
+      .eq('id', newPatient.id)
+
     // Atualizar lead (marcar como convertido)
     await supabase
       .from('leads')
@@ -125,6 +210,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       patientId: newPatient.id,
+      loginCredentials: {
+        email: email.trim().toLowerCase(),
+        password: DEFAULT_PATIENT_PASSWORD,
+        mustChangePassword: true,
+      },
     })
   } catch (error: any) {
     console.error('Erro ao converter lead em paciente:', error)
