@@ -65,7 +65,18 @@ export default function WhatsAppPage() {
         </div>
         <Button
           variant="outline"
-          onClick={() => router.push('/whatsapp')}
+          onClick={() => {
+            const width = 1200
+            const height = 800
+            const left = (window.screen.width - width) / 2
+            const top = (window.screen.height - height) / 2
+            
+            window.open(
+              '/whatsapp',
+              'WhatsAppFullscreen',
+              `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no`
+            )
+          }}
           className="gap-2"
         >
           <Maximize2 className="h-4 w-4" />
