@@ -24,12 +24,16 @@ import {
   Briefcase,
   Stethoscope,
   Loader2,
+  UserPlus,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { AIControlToggle } from './ai-control-toggle'
 import { useToast } from '@/hooks/use-toast'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface ContactInfoSidebarProps {
   phone: string
@@ -88,6 +92,10 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
   const [quickMessages, setQuickMessages] = useState<QuickMessage[]>([])
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [showConvertDialog, setShowConvertDialog] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [cpf, setCpf] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const supabase = createClient()
   const router = useRouter()
   const { toast } = useToast()
@@ -393,6 +401,17 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
                     <Edit className="h-3 w-3 mr-1" />
                     Editar Lead
                   </Button>
+                  {!patient && lead.status !== 'convertido' && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setShowConvertDialog(true)}
+                    >
+                      <UserPlus className="h-3 w-3 mr-1" />
+                      Converter em Paciente
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -636,7 +655,145 @@ export function ContactInfoSidebar({ phone, contactName, onQuickMessage }: Conta
           </Card>
         </div>
       </ScrollArea>
+
+      {/* Dialog de Conversão para Paciente */}
+      <Dialog open={showConvertDialog} onOpenChange={setShowConvertDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Converter Lead em Paciente</DialogTitle>
+            <DialogDescription>
+              Preencha os dados obrigatórios para converter este lead em paciente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="cpf">CPF *</Label>
+              <Input
+                id="cpf"
+                placeholder="000.000.000-00"
+                value={cpf}
+                onChange={(e) => {
+                  let value = e.target.value.replace(/\D/g, '')
+                  if (value.length <= 11) {
+                    value = value.replace(/(\d{3})(\d)/, '$1.$2')
+                    value = value.replace(/(\d{3})(\d)/, '$1.$2')
+                    value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+                    setCpf(value)
+                  }
+                }}
+                maxLength={14}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="birthDate">Data de Nascimento *</Label>
+              <Input
+                id="birthDate"
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            {lead && (
+              <div className="p-3 bg-muted rounded-md">
+                <p className="text-sm font-medium mb-1">Dados que serão usados:</p>
+                <p className="text-xs text-muted-foreground">Nome: {lead.nome || contactName || 'Não informado'}</p>
+                <p className="text-xs text-muted-foreground">Telefone: {lead.telefone?.replace('@s.whatsapp.net', '') || phone}</p>
+                {lead.email && (
+                  <p className="text-xs text-muted-foreground">Email: {lead.email}</p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowConvertDialog(false)
+                setCpf('')
+                setBirthDate('')
+              }}
+              disabled={converting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConvertToPatient}
+              disabled={converting || !cpf || !birthDate}
+            >
+              {converting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Convertendo...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Converter
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
+
+  const handleConvertToPatient = async () => {
+    if (!lead || !cpf || !birthDate) {
+      toast({
+        title: 'Erro',
+        description: 'Preencha CPF e data de nascimento',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setConverting(true)
+
+      const response = await fetch('/api/leads/convert-to-patient', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          cpf: cpf.replace(/\D/g, ''),
+          birthDate,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: 'Lead convertido!',
+          description: 'Lead foi convertido em paciente com sucesso',
+        })
+        setShowConvertDialog(false)
+        setCpf('')
+        setBirthDate('')
+        
+        // Recarregar informações do contato
+        await loadContactInfo()
+        
+        // Opcional: redirecionar para página do paciente
+        if (data.patientId) {
+          setTimeout(() => {
+            router.push(`/dashboard/pacientes/${data.patientId}`)
+          }, 1000)
+        }
+      } else {
+        throw new Error(data.error || 'Não foi possível converter lead')
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível converter lead',
+        variant: 'destructive',
+      })
+    } finally {
+      setConverting(false)
+    }
+  }
 }
 
