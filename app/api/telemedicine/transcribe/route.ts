@@ -42,7 +42,9 @@ export async function POST(request: NextRequest) {
         .eq('id', sessionId)
         .maybeSingle()
 
-      if (session?.transcription_enabled || session?.ai_summary_enabled) {
+      // Verificar consentimento apenas se resumo por IA estiver habilitado
+      // Transcrição sozinha só precisa de consentimento do médico
+      if (session?.ai_summary_enabled) {
         if (!session.ai_consent_doctor) {
           return NextResponse.json(
             { error: 'Consentimento do médico para uso de IA não foi registrado' },
@@ -50,9 +52,17 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        if (session.ai_summary_enabled && !session.ai_consent_patient) {
+        if (!session.ai_consent_patient) {
           return NextResponse.json(
             { error: 'Consentimento do paciente para uso de IA não foi registrado. Aguarde o paciente aceitar o termo.' },
+            { status: 403 }
+          )
+        }
+      } else if (session?.transcription_enabled) {
+        // Apenas transcrição - só precisa de consentimento do médico
+        if (!session.ai_consent_doctor) {
+          return NextResponse.json(
+            { error: 'Consentimento do médico para transcrição não foi registrado' },
             { status: 403 }
           )
         }

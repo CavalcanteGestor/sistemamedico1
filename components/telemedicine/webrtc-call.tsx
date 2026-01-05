@@ -326,8 +326,8 @@ export function WebRTCCall({
             onStartCall()
           }
           
-          // Iniciar gravação automaticamente se aiSummaryEnabled for true
-          if (aiSummaryEnabled && isDoctor && !autoRecordingStartedRef.current) {
+          // Iniciar gravação automaticamente se transcriptionEnabled ou aiSummaryEnabled for true
+          if ((transcriptionEnabled || aiSummaryEnabled) && isDoctor && !autoRecordingStartedRef.current) {
             autoRecordingStartedRef.current = true
             // Tentar iniciar a gravação com vários delays para garantir que o componente está montado
             const tryStartRecording = (attempts = 0) => {
@@ -1130,7 +1130,7 @@ export function WebRTCCall({
                 localStream={localStreamRef.current}
                 remoteStream={remoteVideoRef.current?.srcObject as MediaStream || null}
                 onRecordingChange={setIsRecording}
-                autoStart={aiSummaryEnabled}
+                autoStart={transcriptionEnabled || aiSummaryEnabled}
                 hideControls={aiSummaryEnabled}
               />
             )}
@@ -1186,8 +1186,8 @@ export function WebRTCCall({
               />
             )}
 
-            {/* Resumo com IA - Só mostrar se estiver habilitado */}
-            {sessionId && isDoctor && startTime && aiSummaryEnabled && (
+            {/* Resumo com IA e/ou Transcrição - Mostrar se transcriptionEnabled ou aiSummaryEnabled */}
+            {sessionId && isDoctor && startTime && (transcriptionEnabled || aiSummaryEnabled) && (
               <AISummary
                 sessionId={sessionId}
                 appointmentId={appointmentId}
@@ -1195,12 +1195,13 @@ export function WebRTCCall({
                 duration={startTime ? Math.floor((Date.now() - startTime.getTime()) / 1000) : 0}
                 localStream={localStreamRef.current}
                 remoteStream={remoteVideoRef.current?.srcObject as MediaStream || null}
-                autoTranscribe={aiSummaryEnabled}
+                autoTranscribe={transcriptionEnabled || aiSummaryEnabled}
                 hideTranscribeButton={aiSummaryEnabled}
+                showOnlyTranscription={transcriptionEnabled && !aiSummaryEnabled}
                 isRecording={isRecording}
                 onRecordingStop={() => {
                   // Quando a gravação parar, iniciar transcrição automaticamente
-                  if (aiSummaryEnabled) {
+                  if (transcriptionEnabled || aiSummaryEnabled) {
                     // A transcrição será iniciada automaticamente pelo AISummary
                   }
                 }}

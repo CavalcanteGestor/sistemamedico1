@@ -142,18 +142,18 @@ export function SessionSetup({ onComplete, onCancel, userName, isDoctor = true }
       return
     }
 
-    // Se IA estiver habilitada, mostrar termo de consentimento primeiro
-    if (aiSummaryEnabled && !aiConsentGiven) {
+    // Se IA ou transcrição estiverem habilitadas, mostrar termo de consentimento primeiro
+    if ((aiSummaryEnabled || transcriptionEnabled) && !aiConsentGiven) {
       setShowAIConsent(true)
       return
     }
 
-    // Se já aceitou ou não precisa de IA, continuar normalmente
+    // Se já aceitou ou não precisa de IA/transcrição, continuar normalmente
     onComplete({
       aiSummaryEnabled,
       aiSummaryPrompt: aiSummaryEnabled ? aiSummaryPrompt.trim() : undefined,
       transcriptionEnabled,
-      aiConsentGiven: aiSummaryEnabled ? aiConsentGiven : false,
+      aiConsentGiven: (aiSummaryEnabled || transcriptionEnabled) ? aiConsentGiven : false,
     })
   }
 

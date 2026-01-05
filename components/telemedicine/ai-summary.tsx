@@ -21,6 +21,7 @@ interface AISummaryProps {
   remoteStream?: MediaStream | null
   autoTranscribe?: boolean
   hideTranscribeButton?: boolean
+  showOnlyTranscription?: boolean
   isRecording?: boolean
   onRecordingStop?: () => void
 }
@@ -33,7 +34,7 @@ interface TranscriptionSegment {
   included: boolean
 }
 
-export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration, localStream, remoteStream, autoTranscribe = false, hideTranscribeButton = false, isRecording = false, onRecordingStop }: AISummaryProps) {
+export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration, localStream, remoteStream, autoTranscribe = false, hideTranscribeButton = false, showOnlyTranscription = false, isRecording = false, onRecordingStop }: AISummaryProps) {
   const [summary, setSummary] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -139,7 +140,9 @@ export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration,
         .eq('id', sessionId)
         .maybeSingle()
 
-      if (sessionData?.transcription_enabled || sessionData?.ai_summary_enabled) {
+      // Verificar consentimento apenas se resumo por IA estiver habilitado
+      // Transcrição sozinha só precisa de consentimento do médico
+      if (sessionData?.ai_summary_enabled) {
         if (!sessionData.ai_consent_doctor) {
           toast({
             title: 'Consentimento necessário',
@@ -149,10 +152,20 @@ export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration,
           return
         }
 
-        if (sessionData.ai_summary_enabled && !sessionData.ai_consent_patient) {
+        if (!sessionData.ai_consent_patient) {
           toast({
             title: 'Aguardando consentimento do paciente',
             description: 'O paciente ainda não aceitou o termo de consentimento. Aguarde a aceitação.',
+            variant: 'destructive',
+          })
+          return
+        }
+      } else if (sessionData?.transcription_enabled) {
+        // Apenas transcrição - só precisa de consentimento do médico
+        if (!sessionData.ai_consent_doctor) {
+          toast({
+            title: 'Consentimento necessário',
+            description: 'É necessário aceitar o termo de consentimento para transcrição antes de transcrever.',
             variant: 'destructive',
           })
           return
@@ -472,12 +485,26 @@ export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration,
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            Resumo da Consulta (IA)
+            {showOnlyTranscription ? (
+              <>
+                <Mic className="h-4 w-4" />
+                Transcrição da Consulta
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Resumo da Consulta (IA)
+              </>
+            )}
           </CardTitle>
-          {summary && (
+          {summary && !showOnlyTranscription && (
             <Badge variant="outline" className="text-xs">
               Gerado
+            </Badge>
+          )}
+          {transcription.length > 0 && showOnlyTranscription && (
+            <Badge variant="outline" className="text-xs">
+              {transcription.length} segmentos
             </Badge>
           )}
         </div>
@@ -583,7 +610,9 @@ export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration,
                 {showTranscriptionEditor && (
                   <Card className="border-2">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-xs">Selecione o que incluir no resumo</CardTitle>
+                      <CardTitle className="text-xs">
+                        {showOnlyTranscription ? 'Transcrição da Conversa' : 'Selecione o que incluir no resumo'}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ScrollArea className="h-[200px] pr-4">
@@ -671,46 +700,67 @@ export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration,
               </div>
             )}
 
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {transcription.length > 0
-                  ? 'Selecione os trechos da conversa que deseja incluir no resumo. O resumo será gerado com base na conversa transcrita e nas anotações.'
-                  : hideTranscribeButton
-                  ? 'A transcrição será iniciada automaticamente quando a gravação terminar. Após a transcrição, você poderá gerar o resumo.'
-                  : 'Gere um resumo automático da consulta usando inteligência artificial. O resumo será baseado nas anotações e conversa da reunião.'}
-              </p>
-              {transcribing && (
-                <Badge variant="outline" className="text-xs">
-                  <Mic className="h-3 w-3 mr-1 animate-pulse" />
-                  Transcrevendo conversa...
-                </Badge>
-              )}
-              {transcription.length > 0 && (
-                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                  <Check className="h-3 w-3 mr-1" />
-                  Transcrição concluída
-                </Badge>
-              )}
-              <Button
-                onClick={generateSummary}
-                disabled={generating || (transcription.length === 0 && !notes) || transcribing}
-                className="w-full"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Gerando resumo...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Gerar Resumo com IA
-                  </>
+            {!showOnlyTranscription && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {transcription.length > 0
+                    ? 'Selecione os trechos da conversa que deseja incluir no resumo. O resumo será gerado com base na conversa transcrita e nas anotações.'
+                    : hideTranscribeButton
+                    ? 'A transcrição será iniciada automaticamente quando a gravação terminar. Após a transcrição, você poderá gerar o resumo.'
+                    : 'Gere um resumo automático da consulta usando inteligência artificial. O resumo será baseado nas anotações e conversa da reunião.'}
+                </p>
+                {transcribing && (
+                  <Badge variant="outline" className="text-xs">
+                    <Mic className="h-3 w-3 mr-1 animate-pulse" />
+                    Transcrevendo conversa...
+                  </Badge>
                 )}
-              </Button>
-            </div>
+                {transcription.length > 0 && (
+                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                    <Check className="h-3 w-3 mr-1" />
+                    Transcrição concluída
+                  </Badge>
+                )}
+                <Button
+                  onClick={generateSummary}
+                  disabled={generating || (transcription.length === 0 && !notes) || transcribing}
+                  className="w-full"
+                >
+                  {generating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Gerando resumo...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Gerar Resumo com IA
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            {showOnlyTranscription && transcription.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Transcrição completa da conversa durante a consulta. Você pode editar e salvar a transcrição.
+                </p>
+                {transcribing && (
+                  <Badge variant="outline" className="text-xs">
+                    <Mic className="h-3 w-3 mr-1 animate-pulse" />
+                    Transcrevendo conversa...
+                  </Badge>
+                )}
+                {transcription.length > 0 && !transcribing && (
+                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                    <Check className="h-3 w-3 mr-1" />
+                    Transcrição concluída
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
-        ) : (
+        ) : !showOnlyTranscription ? (
           <div className="space-y-3">
             <div className="relative">
               <Textarea
@@ -773,7 +823,7 @@ export function AISummary({ sessionId, appointmentId, isDoctor, notes, duration,
               💡 Este resumo foi gerado automaticamente por IA e pode ser editado e salvo no prontuário.
             </p>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   )
