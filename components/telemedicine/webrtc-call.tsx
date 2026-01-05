@@ -78,12 +78,20 @@ export function WebRTCCall({
   const supabase = createClient()
 
   // Configuração STUN/TURN (gratuitos e públicos)
+  // Em produção, adicione servidores TURN para melhor conectividade em redes restritivas
   const rtcConfiguration: RTCConfiguration = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
+      // Adicionar servidores TURN se configurados (melhora conectividade em NAT restritivo)
+      ...(process.env.NEXT_PUBLIC_TURN_SERVER_URL ? [{
+        urls: process.env.NEXT_PUBLIC_TURN_SERVER_URL,
+        username: process.env.NEXT_PUBLIC_TURN_USERNAME,
+        credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
+      }] : []),
     ],
+    iceCandidatePoolSize: 10, // Melhorar qualidade de conexão
   }
 
   // Atalhos de teclado

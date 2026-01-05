@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -255,15 +256,18 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t p-4 bg-muted/30">
-        <Button
-          variant="ghost"
-          className="w-full justify-start hover:bg-destructive/10 hover:text-destructive transition-colors"
-          onClick={handleLogout}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sair
-        </Button>
+      <div className="border-t p-4 bg-muted/30 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            className="flex-1 justify-start hover:bg-destructive/10 hover:text-destructive transition-colors"
+            onClick={handleLogout}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Sair
+          </Button>
+        </div>
       </div>
     </div>
   )
