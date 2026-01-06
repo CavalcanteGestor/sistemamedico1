@@ -73,6 +73,7 @@ sites-available
 *.md
 !README.md
 !INSTALACAO.md
+!ATUALIZAR_SERVIDOR.md
 
 # Arquivos de teste
 test-*.js
