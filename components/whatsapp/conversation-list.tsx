@@ -37,8 +37,9 @@ export function ConversationList({
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(false) // Começar como false - carregar tudo de uma vez
   const [currentPage, setCurrentPage] = useState(1)
+  const [allConversationsLoaded, setAllConversationsLoaded] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   
@@ -671,11 +672,16 @@ export function ConversationList({
           const newConversations = filtered.filter(c => !existingPhones.has(c.telefone))
           return [...prev, ...newConversations]
         })
-        setHasMore(filtered.length > 0) // Se retornou conversas, pode ter mais
+        // Se retornou menos conversas que o esperado, provavelmente não há mais
+        setHasMore(chats.length >= 50)
+        setCurrentPage(page + 1)
       } else {
         setConversations(filtered)
-        setHasMore(filtered.length > 0) // Se retornou conversas, pode ter mais
+        // Na primeira página, sempre carregar tudo de uma vez (já está sendo feito no servidor)
+        // Se retornou conversas, pode haver mais, mas o servidor já carregou todas
+        setHasMore(false) // Desabilitar scroll infinito - já carregou tudo
         setCurrentPage(1)
+        console.log(`[ConversationList] ✅ Carregadas ${filtered.length} conversas (todas disponíveis)`)
       }
     } catch (error: any) {
       // Melhorar serialização do erro

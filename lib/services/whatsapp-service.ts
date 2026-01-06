@@ -1031,21 +1031,23 @@ export async function getAllChats(page: number = 1): Promise<any[]> {
       console.warn('[getAllChats] Erro ao buscar chats diretamente, tentando método alternativo:', chatsError.message)
     }
 
-    // Fallback: buscar mensagens e extrair conversas (OTIMIZADO - mais páginas para pegar todas)
+    // Fallback: buscar mensagens e extrair conversas (CARREGAR TODAS DE UMA VEZ)
     console.log('[getAllChats] Usando método alternativo: buscar mensagens e extrair conversas')
     const url = `${EVOLUTION_API_URL}/chat/findMessages/${EVOLUTION_INSTANCE_NAME}`
     
     let allMessages: any[] = []
-    let currentPage = page
+    let currentPage = 1
     let hasMore = true
-    // OTIMIZAÇÃO: Aumentar páginas iniciais para pegar TODAS as conversas
-    // Página 1 = 5 páginas (5000 mensagens para garantir que pegamos todas as conversas)
-    // Páginas seguintes = 2 páginas por vez
-    const pagesPerRequest = page === 1 ? 5 : 2 // Mais páginas na primeira para pegar todas
-    const startPage = page === 1 ? 1 : ((page - 2) * 2 + 6) // Ajustar cálculo
-    const endPage = startPage + pagesPerRequest - 1
     
-    while (hasMore && currentPage <= endPage) {
+    // CARREGAR TODAS AS PÁGINAS DISPONÍVEIS para garantir que todas as conversas apareçam
+    // Se for página 1, carregar TODAS as páginas disponíveis (sem limite prático)
+    // Se for página > 1, carregar apenas páginas adicionais
+    const MAX_PAGES_TO_LOAD = page === 1 ? 999 : 5 // Carregar TODAS as páginas na primeira vez (999 = sem limite prático)
+    let pagesLoaded = 0
+    
+    console.log(`[getAllChats] Carregando TODAS as conversas - página ${page}, máximo de páginas: ${MAX_PAGES_TO_LOAD === 999 ? 'TODAS' : MAX_PAGES_TO_LOAD}`)
+    
+    while (hasMore && pagesLoaded < MAX_PAGES_TO_LOAD) {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -1067,18 +1069,19 @@ export async function getAllChats(page: number = 1): Promise<any[]> {
       const data = await response.json()
       const recordsCount = data.messages?.records?.length || 0
       
-      // Log apenas a cada 2 páginas para reduzir spam
-      if (currentPage % 2 === 0 || currentPage === startPage) {
-        console.log(`[getAllChats] Página ${currentPage} (request page ${page}) - Total de registros:`, recordsCount)
+      // Log a cada 5 páginas para reduzir spam
+      if (currentPage % 5 === 0 || currentPage === 1) {
+        console.log(`[getAllChats] Carregando página ${currentPage}/${MAX_PAGES_TO_LOAD} - Registros nesta página: ${recordsCount}, Total acumulado: ${allMessages.length}`)
       }
       
       if (data.messages?.records && Array.isArray(data.messages.records)) {
         allMessages = [...allMessages, ...data.messages.records]
         
         const totalPages = data.messages.pages || 1
-        // Parar se chegamos ao limite de páginas desta requisição OU não há mais páginas
-        hasMore = currentPage < totalPages && currentPage < endPage
+        // Continuar carregando até não haver mais páginas ou atingir o limite
+        hasMore = currentPage < totalPages
         currentPage++
+        pagesLoaded++
       } else {
         console.warn('[getAllChats] Formato de resposta inesperado:', data)
         hasMore = false
