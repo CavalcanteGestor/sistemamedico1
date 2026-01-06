@@ -863,3 +863,58 @@ export async function getAllChats(): Promise<any[]> {
     throw error
   }
 }
+
+/**
+ * Busca foto de perfil de um contato da Evolution API
+ */
+export async function getProfilePicture(phone: string): Promise<string | null> {
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+    return null
+  }
+
+  try {
+    // Normalizar telefone
+    const normalizedPhone = phone.replace('@s.whatsapp.net', '').replace(/@[^\s]+/g, '').trim()
+    
+    // Tentar diferentes endpoints da Evolution API
+    const endpoints = [
+      `${EVOLUTION_API_URL}/chat/fetchProfilePictureUrl/${EVOLUTION_INSTANCE_NAME}`,
+      `${EVOLUTION_API_URL}/profile/picture/${EVOLUTION_INSTANCE_NAME}`,
+    ]
+    
+    for (const url of endpoints) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'apikey': EVOLUTION_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            number: normalizedPhone,
+          }),
+          // Timeout de 5 segundos
+          signal: AbortSignal.timeout(5000),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const avatarUrl = data.url || data.profilePictureUrl || data.picture || null
+          if (avatarUrl) {
+            return avatarUrl
+          }
+        }
+      } catch (endpointError: any) {
+        // Se não for erro de timeout, continuar tentando próximo endpoint
+        if (!endpointError.name || endpointError.name !== 'TimeoutError') {
+          continue
+        }
+      }
+    }
+    
+    return null
+  } catch (error) {
+    // Erro silencioso - não é crítico se não conseguir buscar foto
+    return null
+  }
+}

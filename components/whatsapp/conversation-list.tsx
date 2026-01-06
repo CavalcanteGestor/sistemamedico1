@@ -18,6 +18,7 @@ interface Conversation {
   unread_count: number
   etapa?: string
   _originalUnread?: number // Temporário, para fallback
+  avatar?: string // URL da foto de perfil
 }
 
 interface ConversationListProps {
@@ -184,6 +185,7 @@ export function ConversationList({
           let ultima_mensagem = ''
           if (chat.lastMessage) {
             const msg = chat.lastMessage
+            // Tentar extrair texto da mensagem primeiro
             ultima_mensagem = msg.conversation || 
                              msg.extendedTextMessage?.text ||
                              msg.imageMessage?.caption ||
@@ -196,15 +198,19 @@ export function ConversationList({
                              msg.contactMessage?.displayName ||
                              msg.contactMessage?.vcard ||
                              msg.buttonsResponseMessage?.selectedButtonId ||
-                             msg.listResponseMessage?.singleSelectReply?.selectedRowId ||
-                             (msg.imageMessage ? '📷 Imagem' : 
-                              msg.videoMessage ? '🎥 Vídeo' : 
-                              msg.audioMessage ? '🎤 Áudio' : 
-                              msg.documentMessage ? '📄 Documento' : 
-                              msg.stickerMessage ? '😀 Figurinha' : 
-                              msg.locationMessage ? '📍 Localização' : 
-                              msg.contactMessage ? '👤 Contato' : 
-                              '[Mídia]')
+                             msg.listResponseMessage?.singleSelectReply?.selectedRowId || ''
+            
+            // Se não encontrou texto e é mídia, usar ícone apropriado
+            if (!ultima_mensagem) {
+              ultima_mensagem = msg.imageMessage ? '📷 Imagem' : 
+                               msg.videoMessage ? '🎥 Vídeo' : 
+                               msg.audioMessage ? '🎤 Áudio' : 
+                               msg.documentMessage ? '📄 Documento' : 
+                               msg.stickerMessage ? '😀 Figurinha' : 
+                               msg.locationMessage ? '📍 Localização' : 
+                               msg.contactMessage ? '👤 Contato' : 
+                               '[Mídia]'
+            }
           }
           
           // Timestamp da última mensagem da Evolution API
@@ -354,9 +360,45 @@ export function ConversationList({
         })
 
       // Buscar última mensagem real e contagem de não lidas do banco para todas as conversas
+      // Também buscar fotos de perfil da Evolution API
       try {
         const phoneList = conversationsData.map(c => c.telefone).filter(Boolean)
         if (phoneList.length > 0) {
+          // Buscar fotos de perfil em paralelo (limitado a 5 por vez para não sobrecarregar)
+          // Fazer de forma não-bloqueante para não atrasar o carregamento da lista
+          const avatarMap: Record<string, string> = {}
+          
+          // Buscar fotos em background (não bloquear renderização)
+          Promise.all(
+            phoneList.slice(0, 5).map(async (phone) => {
+              try {
+                const response = await fetch(`/api/whatsapp/profile-picture?phone=${encodeURIComponent(phone)}`, {
+                  signal: AbortSignal.timeout(3000), // Timeout de 3 segundos
+                })
+                if (response.ok) {
+                  const data = await response.json()
+                  if (data.avatar) {
+                    const normalizedPhone = normalizePhoneForComparison(phone)
+                    avatarMap[phone] = data.avatar
+                    avatarMap[normalizedPhone] = data.avatar
+                    // Atualizar estado para re-renderizar com foto
+                    setConversations(prev => prev.map(conv => {
+                      const convNormalized = normalizePhoneForComparison(conv.telefone)
+                      if (convNormalized === normalizedPhone || conv.telefone === phone) {
+                        return { ...conv, avatar: data.avatar }
+                      }
+                      return conv
+                    }))
+                  }
+                }
+              } catch (error) {
+                // Ignorar erros silenciosamente - não é crítico
+              }
+            })
+          ).catch(() => {
+            // Ignorar erros - não crítico
+          })
+          
           // Buscar TODAS as mensagens para cada telefone e processar localmente
           const { data: allMessages, error: messagesError } = await supabase
             .from('whatsapp_messages')
@@ -374,7 +416,7 @@ export function ConversationList({
               messagesByPhone[msgPhone].push(msg)
             })
 
-            // Para cada telefone, encontrar a mensagem MAIS RECENTE e contar não lidas
+            // Para cada telefone, encontrar a mensagem MAIS RECENTE DE TEXTO e contar não lidas
             const lastMessageMap: Record<string, string> = {}
             const unreadCounts: Record<string, number> = {}
 
@@ -388,11 +430,26 @@ export function ConversationList({
                 return timeB - timeA // Ordenar DESC (mais recente primeiro)
               })
 
-              // Pegar a PRIMEIRA mensagem da lista ordenada (a mais recente)
+              // Pegar a PRIMEIRA mensagem DE TEXTO da lista ordenada (a mais recente)
+              // Ignorar mensagens que são apenas "[Mídia]" ou tipos de mídia sem texto
               if (messages.length > 0) {
-                const mostRecent = messages[0]
-                if (mostRecent.mensagem) {
-                  lastMessageMap[phone] = mostRecent.mensagem.substring(0, 100)
+                // Procurar primeira mensagem com texto real (não apenas indicador de mídia)
+                const mostRecentWithText = messages.find(msg => 
+                  msg.mensagem && 
+                  msg.mensagem.trim() !== '' && 
+                  !msg.mensagem.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
+                )
+                
+                if (mostRecentWithText && mostRecentWithText.mensagem) {
+                  // Limpar e truncar mensagem
+                  const cleanMessage = mostRecentWithText.mensagem.trim()
+                  lastMessageMap[phone] = cleanMessage.substring(0, 100)
+                } else {
+                  // Se não encontrou texto, usar a primeira mensagem mesmo que seja mídia
+                  const mostRecent = messages[0]
+                  if (mostRecent.mensagem) {
+                    lastMessageMap[phone] = mostRecent.mensagem.substring(0, 100)
+                  }
                 }
               }
               
@@ -405,6 +462,11 @@ export function ConversationList({
             conversationsData.forEach((conv) => {
               const normalizedPhone = normalizePhoneForComparison(conv.telefone)
               
+              // Adicionar foto de perfil se disponível
+              if (avatarMap[conv.telefone] || avatarMap[normalizedPhone]) {
+                conv.avatar = avatarMap[conv.telefone] || avatarMap[normalizedPhone]
+              }
+              
               // Comparar timestamp da última mensagem do banco com a da Evolution API
               // Usar a mensagem mais recente entre as duas fontes
               if (lastMessageMap[normalizedPhone] && messagesByPhone[normalizedPhone]?.length > 0) {
@@ -414,7 +476,14 @@ export function ConversationList({
                 
                 // Se a mensagem do banco for mais recente ou igual (com margem de 5 segundos para compensar diferenças de clock)
                 if (dbLastMessageTime >= apiLastMessageTime - 5000) {
-                  conv.ultima_mensagem = lastMessageMap[normalizedPhone]
+                  // Priorizar mensagem de texto do banco se a da API for apenas "[Mídia]"
+                  const isApiMediaOnly = conv.ultima_mensagem.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
+                  if (isApiMediaOnly || !conv.ultima_mensagem.trim()) {
+                    conv.ultima_mensagem = lastMessageMap[normalizedPhone]
+                  } else {
+                    // Se ambas têm texto, usar a mais recente
+                    conv.ultima_mensagem = lastMessageMap[normalizedPhone]
+                  }
                   // Atualizar também o timestamp se for mais recente
                   if (dbLastMessageTime > apiLastMessageTime) {
                     conv.data_ultima_msg = new Date(dbLastMessage.timestamp || dbLastMessage.created_at).toISOString()
@@ -510,10 +579,13 @@ export function ConversationList({
       .subscribe()
 
     // Recarregar conversas periodicamente para pegar atualizações da Evolution API
-    // Aumentar intervalo para reduzir carga
+    // Aumentar intervalo para reduzir carga e evitar recarregamentos desnecessários
     const intervalId = setInterval(() => {
-      loadConversations()
-    }, 60000) // Recarregar a cada 60 segundos (1 minuto)
+      // Só recarregar se não estiver carregando e não houver busca ativa
+      if (!loading && !searchQuery) {
+        loadConversations()
+      }
+    }, 120000) // Recarregar a cada 120 segundos (2 minutos) ao invés de 60
 
     // Retornar função de cleanup
     return () => {
@@ -615,10 +687,30 @@ export function ConversationList({
                 >
                   <div className="flex items-start gap-3">
                     {/* Avatar */}
-                    <div className="flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                      <span className="text-primary font-medium text-sm">
-                        {getInitials(conversation.nome)}
-                      </span>
+                    <div className="flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center relative">
+                      {conversation.avatar ? (
+                        <img 
+                          src={conversation.avatar} 
+                          alt={conversation.nome}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Se falhar ao carregar imagem, mostrar iniciais
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            const parent = target.parentElement
+                            if (parent) {
+                              const initials = document.createElement('span')
+                              initials.className = 'text-primary font-medium text-sm'
+                              initials.textContent = getInitials(conversation.nome)
+                              parent.appendChild(initials)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="text-primary font-medium text-sm">
+                          {getInitials(conversation.nome)}
+                        </span>
+                      )}
                     </div>
                     
                     {/* Conteúdo */}
