@@ -437,17 +437,18 @@ export async function getConversationMessages(phone: string, limit = 50, offset 
       // Não crítico, continuar sem nome
     }
 
-    // ESTRATÉGIA SIMPLES: Buscar TODAS as mensagens e filtrar localmente
+    // OTIMIZAÇÃO: Buscar apenas mensagens do telefone específico (muito mais rápido)
+    // Tentar primeiro buscar mensagens específicas do contato
     let allMessages: any[] = []
     
     try {
+      // ESTRATÉGIA OTIMIZADA: Buscar apenas 2 páginas (suficiente para uma conversa)
+      // Se precisar mais, o scroll infinito carrega
       const url = `${EVOLUTION_API_URL}/chat/findMessages/${EVOLUTION_INSTANCE_NAME}`
       
-      // Buscar apenas mensagens recentes (últimas páginas primeiro)
-      // Limitar a 5 páginas para não buscar mensagens muito antigas
       let page = 1
       let hasMore = true
-      const maxPages = 5 // Limitar para não buscar mensagens muito antigas
+      const maxPages = 2 // REDUZIDO: apenas 2 páginas para carregar rápido
       
       while (hasMore && page <= maxPages) {
         const response = await fetch(url, {
@@ -477,13 +478,36 @@ export async function getConversationMessages(phone: string, limit = 50, offset 
         }
       }
       
-      // Se não encontrou mensagens suficientes nas primeiras 5 páginas,
-      // filtrar por data para pegar apenas mensagens recentes
-      const thirtyDaysAgo = Date.now() / 1000 - (30 * 24 * 60 * 60)
+      // Filtrar por data para pegar apenas mensagens recentes (últimos 90 dias)
+      const ninetyDaysAgo = Date.now() / 1000 - (90 * 24 * 60 * 60)
       allMessages = allMessages.filter((msg: any) => {
         const msgTimestamp = msg.messageTimestamp || msg.timestamp || 0
-        return msgTimestamp >= thirtyDaysAgo
+        return msgTimestamp >= ninetyDaysAgo
       })
+      
+      // OTIMIZAÇÃO: Filtrar mensagens do telefone específico ANTES de processar tudo
+      const phoneVariations = [
+        targetPhoneFull,
+        targetPhoneNormalized,
+        targetPhoneClean,
+        phone,
+      ]
+      
+      allMessages = allMessages.filter((msg: any) => {
+        const key = msg.key || {}
+        const remoteJid = key.remoteJid || msg.remoteJid || msg.from || msg.to || ''
+        const normalizedRemote = normalizePhoneNumber(remoteJid)
+        
+        // Verificar se a mensagem é do telefone que estamos buscando
+        return phoneVariations.some(phoneVar => {
+          const normalizedVar = normalizePhoneNumber(phoneVar)
+          return normalizedRemote === normalizedVar || 
+                 normalizedRemote.includes(normalizedVar) ||
+                 normalizedVar.includes(normalizedRemote)
+        })
+      })
+      
+      console.log(`[getConversationMessages] Mensagens filtradas para ${phone}: ${allMessages.length}`)
     } catch (error) {
       console.error('[getConversationMessages] Erro ao buscar mensagens:', error)
       return []
@@ -1007,18 +1031,18 @@ export async function getAllChats(page: number = 1): Promise<any[]> {
       console.warn('[getAllChats] Erro ao buscar chats diretamente, tentando método alternativo:', chatsError.message)
     }
 
-    // Fallback: buscar mensagens e extrair conversas (OTIMIZADO - menos páginas)
+    // Fallback: buscar mensagens e extrair conversas (OTIMIZADO - mais páginas para pegar todas)
     console.log('[getAllChats] Usando método alternativo: buscar mensagens e extrair conversas')
     const url = `${EVOLUTION_API_URL}/chat/findMessages/${EVOLUTION_INSTANCE_NAME}`
     
     let allMessages: any[] = []
     let currentPage = page
     let hasMore = true
-    // OTIMIZAÇÃO: Reduzir drasticamente o número de páginas
-    // Página 1 = apenas 2 páginas (2000 mensagens é suficiente para extrair conversas)
-    // Páginas seguintes = 1 página por vez
-    const pagesPerRequest = page === 1 ? 2 : 1 // MUITO MENOS páginas!
-    const startPage = page === 1 ? 1 : page
+    // OTIMIZAÇÃO: Aumentar páginas iniciais para pegar TODAS as conversas
+    // Página 1 = 5 páginas (5000 mensagens para garantir que pegamos todas as conversas)
+    // Páginas seguintes = 2 páginas por vez
+    const pagesPerRequest = page === 1 ? 5 : 2 // Mais páginas na primeira para pegar todas
+    const startPage = page === 1 ? 1 : ((page - 2) * 2 + 6) // Ajustar cálculo
     const endPage = startPage + pagesPerRequest - 1
     
     while (hasMore && currentPage <= endPage) {

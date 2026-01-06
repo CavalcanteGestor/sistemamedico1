@@ -55,6 +55,10 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
   const subscriptionRef = useRef<(() => void) | null>(null)
   const { toast } = useToast()
   
+  // Cache de mensagens por telefone (persistente durante a sessão)
+  const messagesCacheRef = useRef<Record<string, { messages: Message[]; timestamp: number }>>({})
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+  
   useEffect(() => {
     // CRÍTICO: Limpar mensagens ANTES de qualquer outra coisa
     setMessages([])
@@ -195,9 +199,22 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
     
     const targetPhone = phone // Capturar telefone atual
     
+    // OTIMIZAÇÃO: Verificar cache primeiro (apenas para offset 0)
+    if (offset === 0) {
+      const cached = messagesCacheRef.current[targetPhone]
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        // Usar mensagens do cache imediatamente
+        setMessages(cached.messages)
+        setLoading(false)
+        // Continuar carregando em background para atualizar
+      }
+    }
+    
     try {
       loadingRef.current = true
-      setLoading(true)
+      if (offset === 0) {
+        setLoading(true)
+      }
       // Log removido para produção
       
       const response = await fetch(`/api/whatsapp/messages?phone=${encodeURIComponent(targetPhone)}&limit=50&offset=${offset}`)
@@ -249,6 +266,12 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
         if (offset === 0) {
           // IMPORTANTE: Substituir TODAS as mensagens (não fazer merge)
           setMessages(messagesForThisPhone)
+          
+          // Salvar no cache
+          messagesCacheRef.current[targetPhone] = {
+            messages: messagesForThisPhone,
+            timestamp: Date.now(),
+          }
           // Log removido para produção
         } else {
           setMessages((prev) => {
