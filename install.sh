@@ -168,7 +168,7 @@ read -p "Pressione ENTER para continuar (você pode executar as migrações depo
 echo -e "${BLUE}📦 Instalando dependências do projeto...${NC}"
 npm ci --production=false
 
-# 11. Build do projeto
+# 12. Build do projeto
 echo -e "${BLUE}🔨 Fazendo build do projeto...${NC}"
 npm run build
 
