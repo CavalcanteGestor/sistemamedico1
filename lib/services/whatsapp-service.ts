@@ -641,10 +641,34 @@ export async function getConversationMessages(phone: string, limit = 50, offset 
         timestamp = new Date(msg.timestamp).toISOString()
       }
       
+      // PRIORIZAR TEXTO REAL - nunca usar "[Mídia]" se houver qualquer texto disponível
+      let finalMessage = messageContent
+      
+      // Se não tem conteúdo mas tem mídia, tentar extrair mais informações
+      if (!finalMessage && mediaUrl) {
+        // Tentar usar nome do arquivo ou tipo de mídia como mensagem
+        if (mediaType === 'document' && msg.message?.documentMessage?.fileName) {
+          finalMessage = msg.message.documentMessage.fileName
+        } else if (mediaType === 'image') {
+          finalMessage = '📷 Imagem'
+        } else if (mediaType === 'video') {
+          finalMessage = '🎥 Vídeo'
+        } else if (mediaType === 'audio') {
+          finalMessage = '🎤 Áudio'
+        } else {
+          finalMessage = '[Mídia]'
+        }
+      }
+      
+      // Se ainda não tem nada, usar string vazia em vez de "[Mídia]"
+      if (!finalMessage) {
+        finalMessage = ''
+      }
+      
       return {
         id: key.id || msg.id || `msg-${Date.now()}-${Math.random()}`,
         telefone: targetPhoneFull, // SEMPRE usar o telefone da conversa
-        mensagem: messageContent || (mediaUrl ? '[Mídia]' : ''),
+        mensagem: finalMessage,
         tipo: fromMe ? 'sent' : 'received',
         remetente: fromMe ? 'system' : targetPhoneFull,
         destinatario: fromMe ? targetPhoneFull : 'system',

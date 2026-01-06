@@ -249,10 +249,13 @@ export function ConversationList({
                        'Sem nome'
           
           // Última mensagem diretamente da Evolution API
+          // IMPORTANTE: Tentar buscar mensagens de texto mais recentes primeiro
           let ultima_mensagem = ''
+          
+          // Se o chat tem lastMessage, tentar extrair texto
           if (chat.lastMessage) {
             const msg = chat.lastMessage
-            // Tentar extrair texto da mensagem primeiro
+            // PRIORIZAR TEXTO REAL - tentar todas as formas de texto primeiro
             ultima_mensagem = msg.conversation || 
                              msg.extendedTextMessage?.text ||
                              msg.imageMessage?.caption ||
@@ -267,16 +270,36 @@ export function ConversationList({
                              msg.buttonsResponseMessage?.selectedButtonId ||
                              msg.listResponseMessage?.singleSelectReply?.selectedRowId || ''
             
-            // Se não encontrou texto e é mídia, usar ícone apropriado
-            if (!ultima_mensagem) {
-              ultima_mensagem = msg.imageMessage ? '📷 Imagem' : 
-                               msg.videoMessage ? '🎥 Vídeo' : 
-                               msg.audioMessage ? '🎤 Áudio' : 
-                               msg.documentMessage ? '📄 Documento' : 
-                               msg.stickerMessage ? '😀 Figurinha' : 
-                               msg.locationMessage ? '📍 Localização' : 
-                               msg.contactMessage ? '👤 Contato' : 
-                               '[Mídia]'
+            // Limpar espaços e verificar se é texto válido
+            ultima_mensagem = ultima_mensagem.trim()
+            
+            // Se não encontrou texto válido e é mídia, usar ícone apropriado
+            if (!ultima_mensagem || ultima_mensagem === '') {
+              if (msg.imageMessage) {
+                ultima_mensagem = '📷 Imagem'
+              } else if (msg.videoMessage) {
+                ultima_mensagem = '🎥 Vídeo'
+              } else if (msg.audioMessage) {
+                ultima_mensagem = '🎤 Áudio'
+              } else if (msg.documentMessage) {
+                ultima_mensagem = '📄 Documento'
+              } else if (msg.stickerMessage) {
+                ultima_mensagem = '😀 Figurinha'
+              } else if (msg.locationMessage) {
+                ultima_mensagem = '📍 Localização'
+              } else if (msg.contactMessage) {
+                ultima_mensagem = '👤 Contato'
+              } else {
+                ultima_mensagem = '[Mídia]'
+              }
+            }
+          }
+          
+          // Se ainda não tem mensagem, tentar usar lastMessageText do chat se existir
+          if (!ultima_mensagem && chat.lastMessageText) {
+            const cleanText = chat.lastMessageText.trim()
+            if (cleanText && !cleanText.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)) {
+              ultima_mensagem = cleanText
             }
           }
           
@@ -564,41 +587,44 @@ export function ConversationList({
               }
               
               // Comparar timestamp da última mensagem do banco com a da Evolution API
-              // Usar a mensagem mais recente entre as duas fontes
+              // SEMPRE priorizar mensagem de texto do banco se ela existir e tiver texto real
               if (lastMessageMap[normalizedPhone] && messagesByPhone[normalizedPhone]?.length > 0) {
-                const dbLastMessage = messagesByPhone[normalizedPhone][0] // Já está ordenada (mais recente primeiro)
-                const dbLastMessageTime = new Date(dbLastMessage.timestamp || dbLastMessage.created_at).getTime()
-                const apiLastMessageTime = new Date(conv.data_ultima_msg).getTime()
+                const dbMessageText = lastMessageMap[normalizedPhone]
+                const isDbMessageText = dbMessageText && 
+                                       dbMessageText.trim() !== '' && 
+                                       !dbMessageText.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
                 
-                // Se a mensagem do banco for mais recente ou igual (com margem de 5 segundos para compensar diferenças de clock)
-                if (dbLastMessageTime >= apiLastMessageTime - 5000) {
-                  // SEMPRE priorizar mensagem de texto do banco se ela existir e tiver texto real
-                  const dbMessageText = lastMessageMap[normalizedPhone]
-                  const isDbMessageText = dbMessageText && 
-                                         dbMessageText.trim() !== '' && 
-                                         !dbMessageText.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
+                // Se o banco tem texto real, SEMPRE usar ele (independente de timestamp)
+                if (isDbMessageText) {
+                  conv.ultima_mensagem = dbMessageText.substring(0, 100)
+                } else {
+                  // Se não tem texto real no banco, verificar se a API tem texto
+                  const apiMessageText = conv.ultima_mensagem || ''
+                  const isApiMessageText = apiMessageText && 
+                                           apiMessageText.trim() !== '' && 
+                                           !apiMessageText.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
                   
-                  const isApiMediaOnly = conv.ultima_mensagem.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
-                  
-                  // Se a mensagem do banco tem texto real, usar ela
-                  if (isDbMessageText) {
-                    conv.ultima_mensagem = dbMessageText
-                  }
-                  // Se a API tem texto mas o banco não, manter a da API
-                  else if (!isApiMediaOnly && conv.ultima_mensagem.trim()) {
-                    // Manter a da API
-                  }
-                  // Se ambas são mídia ou vazias, usar a mais recente
-                  else {
-                    conv.ultima_mensagem = dbMessageText || conv.ultima_mensagem
-                  }
-                  
-                  // Atualizar também o timestamp se for mais recente
-                  if (dbLastMessageTime > apiLastMessageTime) {
-                    conv.data_ultima_msg = new Date(dbLastMessage.timestamp || dbLastMessage.created_at).toISOString()
+                  // Se a API tem texto real, manter ele
+                  if (isApiMessageText) {
+                    // Já está definido em conv.ultima_mensagem, não precisa fazer nada
+                  } else {
+                    // Se nenhuma das duas tem texto, verificar timestamp para decidir qual usar
+                    const dbLastMessage = messagesByPhone[normalizedPhone][0] // Já está ordenada (mais recente primeiro)
+                    const dbLastMessageTime = new Date(dbLastMessage.timestamp || dbLastMessage.created_at).getTime()
+                    const apiLastMessageTime = new Date(conv.data_ultima_msg).getTime()
+                    
+                    // Se a mensagem do banco for mais recente, usar ela mesmo que seja mídia
+                    if (dbLastMessageTime >= apiLastMessageTime - 5000) {
+                      conv.ultima_mensagem = dbMessageText || '[Mídia]'
+                      
+                      // Atualizar também o timestamp se for mais recente
+                      if (dbLastMessageTime > apiLastMessageTime) {
+                        conv.data_ultima_msg = new Date(dbLastMessage.timestamp || dbLastMessage.created_at).toISOString()
+                      }
+                    }
+                    // Caso contrário, manter a da API (já está em conv.ultima_mensagem)
                   }
                 }
-                // Se não, manter conv.ultima_mensagem da Evolution API (já está preenchida)
               }
               
               // Atualizar contagem de não lidas
