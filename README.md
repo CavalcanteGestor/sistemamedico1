@@ -53,6 +53,8 @@ bash install.sh sistema-medico mercuri.ialumi.cloud
   - `NEXT_PUBLIC_SUPABASE_URL` - URL do seu projeto Supabase
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Chave anon do Supabase
   - `SUPABASE_SERVICE_ROLE_KEY` - Chave service_role do Supabase
+  - `SUPABASE_ACCESS_TOKEN` - Token de acesso do Supabase (para execução automática de migrações)
+    - Crie em: https://supabase.com/dashboard/account/tokens
 - O domínio deve apontar para o IP do servidor antes de executar
 - O script pausa para você configurar o `.env.local` e depois continua
 
