@@ -114,13 +114,13 @@ export function ConversationList({
         setLoading(true)
       }
 
-      // Buscar conversas da Evolution API com retry logic
+      // Buscar conversas da Evolution API com retry logic (OTIMIZADO - timeout menor)
       let response: Response | null = null
       let result: any = null
       
       try {
         response = await fetch(`/api/whatsapp/chats?page=${page}`, {
-          signal: AbortSignal.timeout(30000), // Timeout de 30 segundos (aumentado para evitar timeout)
+          signal: AbortSignal.timeout(15000), // Timeout de 15 segundos (reduzido para falhar rápido)
         })
         result = await response.json()
       } catch (fetchError: any) {
@@ -169,58 +169,67 @@ export function ConversationList({
 
       // Log removido para produção
 
-      // Extrair números de telefone para buscar nomes dos leads (opcional)
-      const phoneNumbers = chats
-        .map((chat: any) => {
-          const chatId = chat.id || chat.jid || ''
-          return chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`
-        })
-        .filter(Boolean)
+      // OTIMIZAÇÃO: Buscar leads apenas uma vez e cachear (não a cada página)
+      // Cache de leads para evitar múltiplas queries
+      const leadsCacheKey = 'whatsapp_leads_cache'
+      const cachedLeads = sessionStorage.getItem(leadsCacheKey)
+      const leadsCacheTimestamp = cachedLeads ? JSON.parse(cachedLeads).timestamp : 0
+      const LEADS_CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+      
+      let leadNames: Record<string, string> = {} // telefone -> nome
+      let leadPhones: Record<string, string> = {} // nome normalizado -> telefone (número correto)
+      let leadEtapas: Record<string, string> = {}
+      
+      // Usar cache se ainda válido
+      if (cachedLeads && Date.now() - leadsCacheTimestamp < LEADS_CACHE_DURATION) {
+        const cached = JSON.parse(cachedLeads)
+        leadNames = cached.leadNames || {}
+        leadPhones = cached.leadPhones || {}
+        leadEtapas = cached.leadEtapas || {}
+      } else {
+        // Buscar leads apenas se cache expirou
+        try {
+          const { data: leadsData, error: leadsError } = await supabase
+            .from('leads')
+            .select('telefone, nome, etapa')
 
-      // Buscar nomes dos leads do banco (CRÍTICO para mesclar conversas corretamente)
-      const leadNames: Record<string, string> = {} // telefone -> nome
-      const leadPhones: Record<string, string> = {} // nome normalizado -> telefone (número correto)
-      const leadEtapas: Record<string, string> = {}
-      let allLeads: any[] | null = null
-
-      try {
-        // Buscar todos os leads para ter nomes corretos e números reais
-        const { data: leadsData, error: leadsError } = await supabase
-          .from('leads')
-          .select('telefone, nome, etapa')
-
-        if (leadsError) {
-          console.warn('Erro ao buscar leads (não crítico):', leadsError)
-        }
-
-        allLeads = leadsData || null
-
-        if (allLeads) {
-          allLeads.forEach((lead) => {
-            if (lead.telefone && lead.nome) {
-              const normalizedPhone = normalizePhoneForComparison(lead.telefone)
-              const leadName = lead.nome.trim()
-              
-              // Mapear telefone -> nome (todas as variações)
-              leadNames[lead.telefone] = leadName
-              leadNames[normalizedPhone] = leadName
-              
-              // Mapear nome normalizado -> telefone (número CORRETO do banco)
-              const normalizedName = leadName.toLowerCase().trim()
-              if (!leadPhones[normalizedName] || normalizedPhone.startsWith('55')) {
-                // Priorizar número brasileiro se houver múltiplos
-                leadPhones[normalizedName] = standardizePhone(normalizedPhone)
+          if (leadsError) {
+            console.warn('Erro ao buscar leads (não crítico):', leadsError)
+          } else if (leadsData) {
+            leadsData.forEach((lead) => {
+              if (lead.telefone && lead.nome) {
+                const normalizedPhone = normalizePhoneForComparison(lead.telefone)
+                const leadName = lead.nome.trim()
+                
+                // Mapear telefone -> nome (todas as variações)
+                leadNames[lead.telefone] = leadName
+                leadNames[normalizedPhone] = leadName
+                
+                // Mapear nome normalizado -> telefone (número CORRETO do banco)
+                const normalizedName = leadName.toLowerCase().trim()
+                if (!leadPhones[normalizedName] || normalizedPhone.startsWith('55')) {
+                  // Priorizar número brasileiro se houver múltiplos
+                  leadPhones[normalizedName] = standardizePhone(normalizedPhone)
+                }
+                
+                if (lead.etapa) {
+                  leadEtapas[lead.telefone] = lead.etapa
+                  leadEtapas[normalizedPhone] = lead.etapa
+                }
               }
-              
-              if (lead.etapa) {
-                leadEtapas[lead.telefone] = lead.etapa
-                leadEtapas[normalizedPhone] = lead.etapa
-              }
-            }
-          })
+            })
+            
+            // Salvar no cache
+            sessionStorage.setItem(leadsCacheKey, JSON.stringify({
+              timestamp: Date.now(),
+              leadNames,
+              leadPhones,
+              leadEtapas,
+            }))
+          }
+        } catch (error) {
+          console.warn('Erro ao buscar leads (não crítico):', error)
         }
-      } catch (error) {
-        console.warn('Erro ao buscar leads (não crítico):', error)
       }
       
       // Usar APENAS dados da Evolution API (como WhatsApp Web)
@@ -252,8 +261,16 @@ export function ConversationList({
           // IMPORTANTE: Tentar buscar mensagens de texto mais recentes primeiro
           let ultima_mensagem = ''
           
-          // Se o chat tem lastMessage, tentar extrair texto
-          if (chat.lastMessage) {
+          // PRIORIDADE 1: Usar lastMessageText se já vier processado do servidor
+          if (chat.lastMessageText && chat.lastMessageText.trim()) {
+            const cleanText = chat.lastMessageText.trim()
+            if (cleanText && !cleanText.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)) {
+              ultima_mensagem = cleanText
+            }
+          }
+          
+          // PRIORIDADE 2: Se o chat tem lastMessage, tentar extrair texto
+          if (!ultima_mensagem && chat.lastMessage) {
             const msg = chat.lastMessage
             // PRIORIZAR TEXTO REAL - tentar todas as formas de texto primeiro
             ultima_mensagem = msg.conversation || 
@@ -268,7 +285,9 @@ export function ConversationList({
                              msg.contactMessage?.displayName ||
                              msg.contactMessage?.vcard ||
                              msg.buttonsResponseMessage?.selectedButtonId ||
-                             msg.listResponseMessage?.singleSelectReply?.selectedRowId || ''
+                             msg.listResponseMessage?.singleSelectReply?.selectedRowId ||
+                             msg.body ||
+                             ''
             
             // Limpar espaços e verificar se é texto válido
             ultima_mensagem = ultima_mensagem.trim()
@@ -292,14 +311,6 @@ export function ConversationList({
               } else {
                 ultima_mensagem = '[Mídia]'
               }
-            }
-          }
-          
-          // Se ainda não tem mensagem, tentar usar lastMessageText do chat se existir
-          if (!ultima_mensagem && chat.lastMessageText) {
-            const cleanText = chat.lastMessageText.trim()
-            if (cleanText && !cleanText.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)) {
-              ultima_mensagem = cleanText
             }
           }
           
@@ -399,13 +410,10 @@ export function ConversationList({
                 bestPhone = correctPhoneFromDB
                 console.log(`[ConversationList] ✅ Usando número do banco para "${leadName}": ${bestPhone}`)
               } else {
-                // Tentar buscar diretamente no array de leads
-                const leadEntry = allLeads?.find((l: any) => 
-                  l.nome && l.nome.trim().toLowerCase() === normalizedLeadName
-                )
-                if (leadEntry?.telefone) {
-                  bestPhone = standardizePhone(normalizePhoneForComparison(leadEntry.telefone))
-                  // Log removido para produção
+                // Tentar buscar diretamente do cache usando o nome
+                const foundPhone = leadPhones[normalizedLeadName]
+                if (foundPhone) {
+                  bestPhone = foundPhone
                 }
               }
             }

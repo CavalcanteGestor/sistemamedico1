@@ -921,15 +921,49 @@ export async function getAllChats(page: number = 1): Promise<any[]> {
         
         if (directChats.length > 0) {
           console.log(`[getAllChats] ✅ Encontrados ${directChats.length} chats diretamente`)
-          // Processar e retornar
-          const processedChats = directChats.map((chat: any) => ({
-            id: chat.id || chat.jid || chat.remoteJid || '',
-            jid: chat.jid || chat.id || chat.remoteJid || '',
-            name: chat.name || chat.pushName || chat.notifyName || '',
-            lastMessage: chat.lastMessage || null,
-            lastMessageTimestamp: chat.lastMessageTimestamp || chat.conversationTimestamp || 0,
-            unreadCount: chat.unreadCount || 0,
-          }))
+          // Processar e retornar - MELHORAR EXTRAÇÃO DE ÚLTIMA MENSAGEM
+          const processedChats = directChats.map((chat: any) => {
+            // Extrair texto da última mensagem de forma mais robusta
+            let lastMessageText = ''
+            const lastMsg = chat.lastMessage || {}
+            
+            // Tentar todas as formas de extrair texto
+            lastMessageText = lastMsg.conversation || 
+                             lastMsg.extendedTextMessage?.text ||
+                             lastMsg.imageMessage?.caption ||
+                             lastMsg.videoMessage?.caption ||
+                             lastMsg.audioMessage?.caption ||
+                             lastMsg.documentMessage?.caption ||
+                             lastMsg.documentMessage?.fileName ||
+                             lastMsg.stickerMessage?.caption ||
+                             lastMsg.locationMessage?.caption ||
+                             lastMsg.contactMessage?.displayName ||
+                             lastMsg.body ||
+                             chat.lastMessageText ||
+                             ''
+            
+            // Se não tem texto, usar ícone apropriado
+            if (!lastMessageText.trim()) {
+              if (lastMsg.imageMessage) lastMessageText = '📷 Imagem'
+              else if (lastMsg.videoMessage) lastMessageText = '🎥 Vídeo'
+              else if (lastMsg.audioMessage) lastMessageText = '🎤 Áudio'
+              else if (lastMsg.documentMessage) lastMessageText = '📄 Documento'
+              else if (lastMsg.stickerMessage) lastMessageText = '😀 Figurinha'
+              else if (lastMsg.locationMessage) lastMessageText = '📍 Localização'
+              else if (lastMsg.contactMessage) lastMessageText = '👤 Contato'
+              else lastMessageText = '[Mídia]'
+            }
+            
+            return {
+              id: chat.id || chat.jid || chat.remoteJid || '',
+              jid: chat.jid || chat.id || chat.remoteJid || '',
+              name: chat.name || chat.pushName || chat.notifyName || '',
+              lastMessage: chat.lastMessage || null,
+              lastMessageText: lastMessageText.trim(),
+              lastMessageTimestamp: chat.lastMessageTimestamp || chat.conversationTimestamp || 0,
+              unreadCount: chat.unreadCount || 0,
+            }
+          })
           
           // Buscar leads para enriquecer nomes
           let leadsMap: Record<string, any> = {}
@@ -973,19 +1007,18 @@ export async function getAllChats(page: number = 1): Promise<any[]> {
       console.warn('[getAllChats] Erro ao buscar chats diretamente, tentando método alternativo:', chatsError.message)
     }
 
-    // Fallback: buscar mensagens e extrair conversas
+    // Fallback: buscar mensagens e extrair conversas (OTIMIZADO - menos páginas)
     console.log('[getAllChats] Usando método alternativo: buscar mensagens e extrair conversas')
     const url = `${EVOLUTION_API_URL}/chat/findMessages/${EVOLUTION_INSTANCE_NAME}`
-    console.log('[getAllChats] URL:', url)
     
     let allMessages: any[] = []
     let currentPage = page
     let hasMore = true
-    // Carregar 5 páginas por vez (250 mensagens por página)
-    // Página 1 = páginas 1-5, Página 2 = páginas 6-10, etc.
-    // Para primeira página, carregar mais para ter conversas suficientes
-    const pagesPerRequest = page === 1 ? 10 : 5 // Primeira página carrega mais
-    const startPage = page === 1 ? 1 : ((page - 2) * 5 + 6) // Ajustar cálculo para páginas seguintes
+    // OTIMIZAÇÃO: Reduzir drasticamente o número de páginas
+    // Página 1 = apenas 2 páginas (2000 mensagens é suficiente para extrair conversas)
+    // Páginas seguintes = 1 página por vez
+    const pagesPerRequest = page === 1 ? 2 : 1 // MUITO MENOS páginas!
+    const startPage = page === 1 ? 1 : page
     const endPage = startPage + pagesPerRequest - 1
     
     while (hasMore && currentPage <= endPage) {
