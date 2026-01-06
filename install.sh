@@ -2,8 +2,8 @@
 
 # Script de Instalação Completa no Servidor VPS
 # Execute este script NO SERVIDOR VPS
-# Uso: bash install.sh NOME_PROJETO URL_HOSTINGER GITHUB_REPO_URL
-# Exemplo: bash install.sh sistema-medico mercuri.ialumi.cloud https://github.com/usuario/repo.git
+# Uso: bash install.sh NOME_PROJETO DOMINIO
+# Exemplo: bash install.sh sistema-medico mercuri.ialumi.cloud
 
 set -e
 
