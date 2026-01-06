@@ -2,16 +2,16 @@
 
 Sistema completo de gestão médica com prontuário eletrônico, agendamentos, telemedicina e mais.
 
-## 🚀 Instalação no Servidor VPS
+## 🚀 Instalação no Servidor VPS - SUPER SIMPLES!
 
-### Passo 1: Enviar script para o servidor
+### Processo Completo (2 passos apenas):
 
+**1. Enviar script para o servidor:**
 ```bash
 scp install.sh root@SEU_SERVIDOR:/root/
 ```
 
-### Passo 2: Conectar ao servidor e executar
-
+**2. Conectar e executar (o script faz TUDO):**
 ```bash
 ssh root@SEU_SERVIDOR
 bash install.sh NOME_PROJETO DOMINIO
@@ -21,6 +21,25 @@ bash install.sh NOME_PROJETO DOMINIO
 ```bash
 bash install.sh sistema-medico mercuri.ialumi.cloud
 ```
+
+### ✅ O script faz automaticamente:
+
+- ✅ Cria a pasta `/var/www/NOME_PROJETO`
+- ✅ Clona o repositório Git automaticamente
+- ✅ Instala Node.js, PM2, Nginx, Certbot
+- ✅ Configura `.env.local`
+- ✅ Executa migrações do banco (se configurado)
+- ✅ Instala dependências
+- ✅ Faz build
+- ✅ Configura PM2
+- ✅ Obtém certificado SSL
+- ✅ Configura Nginx
+- ✅ Inicia tudo
+
+**Você só precisa fornecer:**
+- Nome do projeto (ex: `sistema-medico`)
+- Domínio (ex: `mercuri.ialumi.cloud`)
+- Configurar `.env.local` quando o script pausar
 
 **O script já sabe:**
 - ✅ Repositório Git: `https://github.com/CavalcanteGestor/sistemamedico1.git`
