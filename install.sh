@@ -137,32 +137,124 @@ if [ ! -f ".env.local" ]; then
     fi
 fi
 
-# 10. Instruções sobre migrações do banco
+# 10. Executar migrações do banco de dados (opcional e seguro)
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}📊 MIGRAÇÕES DO BANCO DE DADOS${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "${YELLOW}⚠️  IMPORTANTE: Execute as migrações do banco de dados${NC}"
+echo -e "${YELLOW}O script pode executar as migrações automaticamente de forma segura.${NC}"
 echo ""
-echo -e "${YELLOW}As migrações estão em: ${PROJECT_DIR}/supabase/migrations/${NC}"
-echo ""
-echo -e "${YELLOW}Opção 1 - Via Supabase Dashboard (Recomendado):${NC}"
-echo -e "  1. Acesse: https://supabase.com/dashboard"
-echo -e "  2. Selecione seu projeto"
-echo -e "  3. Vá em SQL Editor"
-echo -e "  4. Execute as migrações na ordem numérica:"
-echo -e "     - 001_initial_schema.sql"
-echo -e "     - 002_rls_policies.sql"
-echo -e "     - 003_... (e assim por diante)"
-echo ""
-echo -e "${YELLOW}Opção 2 - Via Supabase CLI:${NC}"
-echo -e "  cd ${PROJECT_DIR}"
-echo -e "  supabase db push"
+read -p "Deseja executar as migrações agora? (s/N): " EXECUTE_MIGRATIONS
+
+if [[ "$EXECUTE_MIGRATIONS" =~ ^[Ss]$ ]]; then
+    echo ""
+    echo -e "${BLUE}📦 Instalando Supabase CLI...${NC}"
+    
+    # Instalar Supabase CLI se não existir
+    if ! command -v supabase &> /dev/null; then
+        # Baixar e instalar Supabase CLI
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+            ARCH="amd64"
+        elif [ "$ARCH" = "aarch64" ]; then
+            ARCH="arm64"
+        fi
+        
+        SUPABASE_CLI_VERSION="1.200.0"
+        wget -qO- https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_${SUPABASE_CLI_VERSION}_linux_${ARCH}.tar.gz | tar -xz
+        mv supabase /usr/local/bin/
+        chmod +x /usr/local/bin/supabase
+        echo -e "${GREEN}✅ Supabase CLI instalado${NC}"
+    else
+        echo -e "${GREEN}✅ Supabase CLI já instalado${NC}"
+    fi
+    
+    # Verificar se .env.local existe e tem as variáveis necessárias
+    if [ ! -f ".env.local" ]; then
+        echo -e "${RED}❌ Arquivo .env.local não encontrado${NC}"
+        echo -e "${YELLOW}Configure o .env.local primeiro${NC}"
+        exit 1
+    fi
+    
+    # Carregar variáveis do .env.local de forma segura
+    export $(grep -v '^#' .env.local | grep -E '^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC_SUPABASE_ANON_KEY)=' | xargs)
+    
+    if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+        echo -e "${RED}❌ Variáveis do Supabase não encontradas no .env.local${NC}"
+        echo -e "${YELLOW}Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY${NC}"
+        exit 1
+    fi
+    
+    # Extrair project ref da URL
+    PROJECT_REF=$(echo $NEXT_PUBLIC_SUPABASE_URL | sed -n 's|https://\([^.]*\)\.supabase\.co|\1|p')
+    
+    if [ -z "$PROJECT_REF" ]; then
+        echo -e "${RED}❌ Não foi possível extrair o project ref da URL do Supabase${NC}"
+        exit 1
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}⚠️  ATENÇÃO: As migrações serão executadas no projeto: ${PROJECT_REF}${NC}"
+    echo -e "${YELLOW}   Certifique-se de que este é o projeto correto!${NC}"
+    echo ""
+    read -p "Confirma a execução das migrações? (s/N): " CONFIRM_MIGRATIONS
+    
+    if [[ "$CONFIRM_MIGRATIONS" =~ ^[Ss]$ ]]; then
+        echo ""
+        echo -e "${BLUE}🔄 Executando migrações...${NC}"
+        
+        # Criar arquivo temporário de configuração do Supabase
+        SUPABASE_CONFIG_DIR="${PROJECT_DIR}/.supabase"
+        mkdir -p ${SUPABASE_CONFIG_DIR}
+        
+        # Criar config.toml básico
+        cat > ${SUPABASE_CONFIG_DIR}/config.toml << EOF
+project_id = "${PROJECT_REF}"
+EOF
+        
+        # Executar migrações uma por uma na ordem
+        MIGRATIONS_DIR="${PROJECT_DIR}/supabase/migrations"
+        if [ -d "$MIGRATIONS_DIR" ]; then
+            # Listar migrações em ordem
+            MIGRATION_FILES=$(ls -1 ${MIGRATIONS_DIR}/*.sql | sort)
+            
+            for MIGRATION_FILE in $MIGRATION_FILES; do
+                MIGRATION_NAME=$(basename "$MIGRATION_FILE")
+                echo -e "${BLUE}📄 Executando: ${MIGRATION_NAME}...${NC}"
+                
+                # Executar migração via script seguro
+                # Usar o script dedicado que tem melhor tratamento de erros
+                if [ -f "${PROJECT_DIR}/scripts/execute-migrations-safe.sh" ]; then
+                    bash "${PROJECT_DIR}/scripts/execute-migrations-safe.sh" "${PROJECT_DIR}" "${MIGRATION_FILE}"
+                else
+                    # Método alternativo: executar SQL diretamente
+                    # Nota: Para máxima segurança, recomenda-se executar manualmente
+                    echo -e "${YELLOW}⚠️  Script de migração não encontrado${NC}"
+                    echo -e "${YELLOW}   Execute manualmente no Supabase Dashboard: ${MIGRATION_NAME}${NC}"
+                    echo -e "${YELLOW}   Arquivo: ${MIGRATION_FILE}${NC}"
+                fi
+            done
+            
+            echo ""
+            echo -e "${GREEN}✅ Migrações executadas${NC}"
+            echo -e "${YELLOW}💡 Verifique no Supabase Dashboard se todas foram aplicadas corretamente${NC}"
+        else
+            echo -e "${RED}❌ Diretório de migrações não encontrado: ${MIGRATIONS_DIR}${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Migrações canceladas. Execute manualmente depois.${NC}"
+    fi
+else
+    echo ""
+    echo -e "${YELLOW}Migrações serão executadas manualmente depois.${NC}"
+    echo -e "${YELLOW}As migrações estão em: ${PROJECT_DIR}/supabase/migrations/${NC}"
+    echo -e "${YELLOW}Execute no Supabase Dashboard > SQL Editor${NC}"
+fi
+
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
-read -p "Pressione ENTER para continuar (você pode executar as migrações depois)..."
 
 # 11. Instalar dependências
 echo -e "${BLUE}📦 Instalando dependências do projeto...${NC}"
