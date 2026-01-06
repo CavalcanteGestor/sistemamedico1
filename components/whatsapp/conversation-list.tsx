@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -36,6 +36,10 @@ export function ConversationList({
 }: ConversationListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   
   // Cache de fotos de perfil para evitar requisições repetidas
@@ -99,19 +103,23 @@ export function ConversationList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  const loadConversations = async (retryCount = 0) => {
+  const loadConversations = async (retryCount = 0, page = 1, append = false) => {
     const MAX_RETRIES = 3
     const RETRY_DELAY = 1000 // 1 segundo
     
     try {
-      setLoading(true)
+      if (append) {
+        setLoadingMore(true)
+      } else {
+        setLoading(true)
+      }
 
       // Buscar conversas da Evolution API com retry logic
       let response: Response | null = null
       let result: any = null
       
       try {
-        response = await fetch('/api/whatsapp/chats', {
+        response = await fetch(`/api/whatsapp/chats?page=${page}`, {
           signal: AbortSignal.timeout(30000), // Timeout de 30 segundos (aumentado para evitar timeout)
         })
         result = await response.json()
@@ -622,7 +630,19 @@ export function ConversationList({
           )
         : conversationsData
 
-      setConversations(filtered)
+      if (append) {
+        // Adicionar novas conversas (evitar duplicatas)
+        setConversations(prev => {
+          const existingPhones = new Set(prev.map(c => c.telefone))
+          const newConversations = filtered.filter(c => !existingPhones.has(c.telefone))
+          return [...prev, ...newConversations]
+        })
+        setHasMore(filtered.length > 0) // Se retornou conversas, pode ter mais
+      } else {
+        setConversations(filtered)
+        setHasMore(filtered.length > 0) // Se retornou conversas, pode ter mais
+        setCurrentPage(1)
+      }
     } catch (error: any) {
       // Melhorar serialização do erro
       const errorDetails = {
@@ -647,11 +667,41 @@ export function ConversationList({
       }
       
       // Garantir que sempre temos uma lista vazia em caso de erro
-      setConversations([])
+      if (!append) {
+        setConversations([])
+      }
+      setHasMore(false)
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
+
+  // Função para carregar mais conversas
+  const loadMoreConversations = async () => {
+    if (loadingMore || !hasMore || searchQuery) return // Não carregar mais se estiver buscando
+    
+    const nextPage = currentPage + 1
+    setCurrentPage(nextPage)
+    await loadConversations(0, nextPage, true)
+  }
+
+  // Detectar scroll para carregar mais
+  useEffect(() => {
+    const scrollArea = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!scrollArea) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollArea
+      // Carregar mais quando estiver a 200px do final
+      if (scrollHeight - scrollTop - clientHeight < 200 && hasMore && !loadingMore && !loading) {
+        loadMoreConversations()
+      }
+    }
+
+    scrollArea.addEventListener('scroll', handleScroll)
+    return () => scrollArea.removeEventListener('scroll', handleScroll)
+  }, [hasMore, loadingMore, loading, searchQuery])
 
   const subscribeToConversations = () => {
     // Escutar mudanças em mensagens WhatsApp para atualizar lista
@@ -765,7 +815,7 @@ export function ConversationList({
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" ref={scrollAreaRef}>
         {filteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-6 space-y-3">
             <div className="text-center max-w-sm">
@@ -869,6 +919,21 @@ export function ConversationList({
                 </button>
               )
             })}
+          </div>
+        )}
+        
+        {/* Indicador de carregamento de mais conversas */}
+        {loadingMore && (
+          <div className="flex items-center justify-center p-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+            <span className="ml-2 text-sm text-muted-foreground">Carregando mais conversas...</span>
+          </div>
+        )}
+        
+        {/* Indicador de fim da lista */}
+        {!hasMore && filteredConversations.length > 0 && !searchQuery && (
+          <div className="flex items-center justify-center p-4">
+            <span className="text-xs text-muted-foreground">Todas as conversas foram carregadas</span>
           </div>
         )}
       </ScrollArea>

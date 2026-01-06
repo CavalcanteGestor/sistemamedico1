@@ -25,9 +25,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
     }
 
+    // Obter parâmetro de página (para scroll infinito)
+    const searchParams = request.nextUrl.searchParams
+    const page = parseInt(searchParams.get('page') || '1')
+
     // Buscar conversas DIRETAMENTE da Evolution API (como WhatsApp Web)
     try {
-      const chats = await getAllChats()
+      const chats = await getAllChats(page)
       
       if (chats.length === 0) {
         logger.warn('Nenhuma conversa encontrada na Evolution API', {
