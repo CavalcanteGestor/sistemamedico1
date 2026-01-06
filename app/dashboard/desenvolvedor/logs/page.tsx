@@ -40,6 +40,8 @@ interface LogEntry {
   context?: any
   user_id?: string
   route?: string
+  error_code?: string
+  stack_trace?: string
 }
 
 export default function LogsPage() {
@@ -57,10 +59,14 @@ export default function LogsPage() {
   }, [])
 
   useEffect(() => {
+    loadLogs()
+  }, [levelFilter, searchQuery])
+
+  useEffect(() => {
     if (autoRefresh) {
       const interval = setInterval(() => {
         loadLogs()
-      }, 5000) // Atualizar a cada 5 segundos
+      }, 10000) // Atualizar a cada 10 segundos
       return () => clearInterval(interval)
     }
   }, [autoRefresh])
@@ -90,49 +96,49 @@ export default function LogsPage() {
     try {
       setLoading(true)
       
-      // Por enquanto, vamos simular logs do sistema
-      // Em produção, você pode criar uma tabela de logs no Supabase
-      // ou usar um serviço de logging externo
-      
-      // Buscar logs de erros do sistema (se houver tabela)
-      // Por enquanto, vamos mostrar logs do console do navegador
-      const browserLogs: LogEntry[] = []
-      
-      // Simular alguns logs para demonstração
-      // Em produção, você deve implementar um sistema de logging real
-      const mockLogs: LogEntry[] = [
-        {
-          id: '1',
-          timestamp: new Date().toISOString(),
-          level: 'info',
-          message: 'Sistema iniciado com sucesso',
-          route: '/dashboard',
-        },
-        {
-          id: '2',
-          timestamp: new Date(Date.now() - 60000).toISOString(),
-          level: 'warn',
-          message: 'Tentativa de acesso não autorizado',
-          route: '/dashboard/admin',
-          user_id: 'user-123',
-        },
-        {
-          id: '3',
-          timestamp: new Date(Date.now() - 120000).toISOString(),
-          level: 'error',
-          message: 'Erro ao carregar dados do paciente',
-          route: '/dashboard/pacientes/123',
-          context: { error: 'Network timeout' },
-        },
-      ]
+      // Buscar logs reais do banco de dados
+      const params = new URLSearchParams()
+      if (levelFilter !== 'all') {
+        params.append('level', levelFilter)
+      }
+      params.append('limit', '100')
+      if (searchQuery) {
+        params.append('search', searchQuery)
+      }
 
-      setLogs(mockLogs)
+      const response = await fetch(`/api/admin/system-logs?${params.toString()}`)
+      
+      if (!response.ok) {
+        throw new Error('Erro ao buscar logs')
+      }
+
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        // Converter dados do banco para formato da interface
+        const logsData: LogEntry[] = result.data.map((log: any) => ({
+          id: log.id,
+          timestamp: log.created_at,
+          level: log.level as LogEntry['level'],
+          message: log.message,
+          context: log.context,
+          route: log.route,
+          user_id: log.user_id,
+          error_code: log.error_code,
+          stack_trace: log.stack_trace,
+        }))
+        
+        setLogs(logsData)
+      } else {
+        setLogs([])
+      }
     } catch (error: any) {
       toast({
         title: 'Erro ao carregar logs',
-        description: error.message,
+        description: error.message || 'Não foi possível carregar os logs do sistema',
         variant: 'destructive',
       })
+      setLogs([])
     } finally {
       setLoading(false)
     }
@@ -314,14 +320,37 @@ export default function LogsPage() {
                             )}
                           </div>
                           <p className="text-sm font-medium break-words">{log.message}</p>
-                          {log.context && (
+                          {log.error_code && (
+                            <Badge variant="outline" className="mt-1 text-xs">
+                              Código: {log.error_code}
+                            </Badge>
+                          )}
+                          {log.user_id && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              Usuário: {log.user_id}
+                            </span>
+                          )}
+                          {(log.context || log.stack_trace) && (
                             <details className="mt-2">
                               <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                                Ver contexto
+                                Ver detalhes
                               </summary>
-                              <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-x-auto">
-                                {JSON.stringify(log.context, null, 2)}
-                              </pre>
+                              {log.context && (
+                                <div className="mt-2">
+                                  <p className="text-xs font-semibold mb-1">Contexto:</p>
+                                  <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                                    {JSON.stringify(log.context, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                              {log.stack_trace && (
+                                <div className="mt-2">
+                                  <p className="text-xs font-semibold mb-1">Stack Trace:</p>
+                                  <pre className="text-xs bg-muted p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                                    {log.stack_trace}
+                                  </pre>
+                                </div>
+                              )}
                             </details>
                           )}
                         </div>
@@ -335,28 +364,6 @@ export default function LogsPage() {
         </CardContent>
       </Card>
 
-      {/* Nota sobre implementação */}
-      <Card className="border-yellow-500/50 bg-yellow-500/5">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-yellow-600 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
-                Nota de Implementação
-              </p>
-              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                Esta página atualmente exibe logs simulados. Para produção, implemente um sistema de logging real:
-                <br />
-                • Crie uma tabela `system_logs` no Supabase
-                <br />
-                • Configure o logger para salvar logs no banco
-                <br />
-                • Ou integre com um serviço de logging externo (Sentry, LogRocket, etc.)
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

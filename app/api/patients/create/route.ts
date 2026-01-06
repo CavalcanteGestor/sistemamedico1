@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { randomBytes } from 'crypto'
 import { rateLimiters } from '@/lib/middleware/rate-limit'
+import { logAudit, extractRequestInfo } from '@/lib/services/audit-service'
 
 // Senha padrão para novos pacientes
 const DEFAULT_PATIENT_PASSWORD = 'paciente123'
@@ -220,6 +221,22 @@ export async function POST(request: NextRequest) {
     // Gerar URL do link de login
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     const loginLink = `${appUrl}/login-paciente/${loginToken}`
+
+    // Registrar auditoria
+    const requestInfo = extractRequestInfo(request)
+    await logAudit({
+      user_id: currentUser.id,
+      action: 'create',
+      table_name: 'patients',
+      record_id: newPatient.id,
+      new_values: {
+        name,
+        cpf,
+        email: normalizedEmail,
+        phone,
+      },
+      ...requestInfo,
+    })
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimiters } from '@/lib/middleware/rate-limit'
 import { logger } from '@/lib/logger'
+import { logAudit, extractRequestInfo } from '@/lib/services/audit-service'
 
 /**
  * API Route para criar médico com login próprio
@@ -280,6 +281,22 @@ export async function POST(request: NextRequest) {
         logger.warn('Erro ao enviar email de convite (não crítico)', { error: emailError })
       }
     }
+
+    // Registrar auditoria
+    const requestInfo = extractRequestInfo(request)
+    await logAudit({
+      user_id: user.id,
+      action: 'create',
+      table_name: 'doctors',
+      record_id: newDoctor.id,
+      new_values: {
+        name,
+        crm,
+        email,
+        specialty_id,
+      },
+      ...requestInfo,
+    })
 
     return NextResponse.json({
       success: true,

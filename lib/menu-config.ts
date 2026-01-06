@@ -279,6 +279,13 @@ const allMenuGroups: MenuGroup[] = [
         description: 'Gerenciar usuários do sistema',
       },
       {
+        title: 'Auditoria',
+        href: '/dashboard/admin/auditoria',
+        icon: Shield,
+        requiredPermission: permissions.manage_settings,
+        description: 'Logs de auditoria do sistema',
+      },
+      {
         title: 'Configurações',
         href: '/dashboard/configuracoes',
         icon: Settings,

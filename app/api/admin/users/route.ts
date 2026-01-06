@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAudit, extractRequestInfo } from '@/lib/services/audit-service'
 
 // GET - Listar todos os usuários (apenas admin)
 export async function GET(request: NextRequest) {
@@ -100,6 +101,21 @@ export async function POST(request: NextRequest) {
     })
 
     if (profileError) throw profileError
+
+    // Registrar auditoria
+    const requestInfo = extractRequestInfo(request)
+    await logAudit({
+      user_id: user.id,
+      action: 'create',
+      table_name: 'profiles',
+      record_id: newUser.user.id,
+      new_values: {
+        email,
+        name,
+        role,
+      },
+      ...requestInfo,
+    })
 
     return NextResponse.json({
       success: true,

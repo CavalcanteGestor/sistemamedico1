@@ -44,6 +44,11 @@ class Logger {
   warn(message: string, context?: LogContext): void {
     if (this.shouldLog('warn')) {
       console.warn(this.formatMessage('warn', message, context))
+      
+      // Salvar warnings importantes no banco
+      if (this.isProduction) {
+        this.saveToDatabase('warn', message, context)
+      }
     }
   }
 
@@ -58,6 +63,41 @@ class Logger {
         } : error,
       }
       console.error(this.formatMessage('error', message, errorContext))
+      
+      // Salvar no banco de dados (async, não bloqueia)
+      if (this.isProduction) {
+        this.saveToDatabase('error', message, errorContext, error instanceof Error ? error.stack : undefined)
+      }
+    }
+  }
+
+  private async saveToDatabase(
+    level: 'warn' | 'error',
+    message: string,
+    context?: LogContext,
+    stackTrace?: string
+  ): Promise<void> {
+    try {
+      // Importação dinâmica para evitar dependência circular
+      const { logSystem } = await import('./services/system-logs-service')
+      
+      // Extrair route e user_id do contexto se disponível
+      const route = context?.route || context?.path || undefined
+      const userId = context?.user_id || context?.userId || undefined
+      const errorCode = context?.code || context?.error_code || undefined
+      
+      await logSystem({
+        level,
+        message,
+        context: context ? { ...context, route: undefined, user_id: undefined, userId: undefined } : undefined,
+        route,
+        user_id: userId,
+        error_code: errorCode,
+        stack_trace: stackTrace,
+      })
+    } catch (err) {
+      // Falha silenciosa - não queremos que logging cause problemas
+      console.error('Erro ao salvar log no banco:', err)
     }
   }
 
