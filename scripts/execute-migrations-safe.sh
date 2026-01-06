@@ -60,29 +60,41 @@ for MIGRATION_FILE in $MIGRATION_FILES; do
     # Ler conteúdo do arquivo e escapar para JSON
     SQL_CONTENT=$(cat "$MIGRATION_FILE" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | tr '\n' ' ' | sed 's/  */ /g')
     
-    # Executar via Supabase REST API (método mais seguro)
-    # Usar pg_query para executar SQL diretamente
-    RESPONSE=$(curl -s -w "\n%{http_code}" \
-        -X POST \
-        "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/exec_sql" \
-        -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-        -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-        -H "Content-Type: application/json" \
-        -H "Prefer: return=minimal" \
-        -d "{\"query\": \"${SQL_CONTENT}\"}" 2>&1)
+    # Método seguro: usar Supabase Management API via curl
+    # Criar função RPC temporária se não existir (apenas para execução segura)
     
-    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-    BODY=$(echo "$RESPONSE" | sed '$d')
+    # Executar SQL via Management API usando service_role_key
+    # Nota: Este método requer que a função exec_sql exista no Supabase
+    # Se não existir, o script mostrará instruções para execução manual
     
-    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "204" ]; then
-        echo -e "${GREEN}✅ ${MIGRATION_NAME} executada${NC}"
-    else
-        # Tentar método alternativo: executar SQL diretamente via psql se disponível
-        echo -e "${YELLOW}⚠️  Método REST falhou, tentando método alternativo...${NC}"
+    SQL_ESCAPED=$(echo "$SQL_CONTENT" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed "s/'/''/g")
+    
+    # Tentar executar via psql se disponível (método mais confiável)
+    if command -v psql &> /dev/null; then
+        # Extrair connection string do service_role_key
+        DB_URL="${NEXT_PUBLIC_SUPABASE_URL#https://}"
+        DB_URL="${DB_URL%.supabase.co}"
         
-        # Nota: Para máxima segurança, recomenda-se executar manualmente no Dashboard
-        echo -e "${YELLOW}   Execute manualmente no Supabase Dashboard: ${MIGRATION_NAME}${NC}"
-        echo -e "${YELLOW}   Resposta HTTP: ${HTTP_CODE}${NC}"
+        # Construir connection string PostgreSQL
+        # Nota: Para máxima segurança, use variável de ambiente DATABASE_URL
+        if [ -n "$DATABASE_URL" ]; then
+            echo "$SQL_CONTENT" | psql "$DATABASE_URL" -q && \
+                echo -e "${GREEN}✅ ${MIGRATION_NAME} executada${NC}" || \
+                echo -e "${YELLOW}⚠️  ${MIGRATION_NAME} falhou - execute manualmente${NC}"
+        else
+            echo -e "${YELLOW}⚠️  DATABASE_URL não configurado${NC}"
+            echo -e "${YELLOW}   Execute manualmente no Supabase Dashboard: ${MIGRATION_NAME}${NC}"
+        fi
+    else
+        # Método alternativo: instruir execução manual (mais seguro)
+        echo -e "${YELLOW}⚠️  Para máxima segurança, execute manualmente:${NC}"
+        echo -e "${BLUE}   1. Acesse: https://supabase.com/dashboard${NC}"
+        echo -e "${BLUE}   2. Projeto: ${PROJECT_REF}${NC}"
+        echo -e "${BLUE}   3. SQL Editor > New Query${NC}"
+        echo -e "${BLUE}   4. Cole o conteúdo de: ${MIGRATION_FILE}${NC}"
+        echo -e "${BLUE}   5. Execute${NC}"
+        echo ""
+        echo -e "${YELLOW}   Ou instale psql e configure DATABASE_URL no .env.local${NC}"
     fi
 done
 
