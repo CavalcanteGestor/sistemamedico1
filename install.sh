@@ -20,17 +20,19 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Repositório Git padrão
+GITHUB_REPO="https://github.com/CavalcanteGestor/sistemamedico1.git"
+PROJECT_NAME="sistema-medico"
+
 # Verificar argumentos
-if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
-    echo -e "${RED}❌ Erro: Argumentos faltando${NC}"
-    echo -e "${YELLOW}Uso: bash install.sh NOME_PROJETO URL_HOSTINGER GITHUB_REPO_URL${NC}"
-    echo -e "${YELLOW}Exemplo: bash install.sh sistema-medico mercuri.ialumi.cloud https://github.com/usuario/repo.git${NC}"
+if [ -z "$1" ]; then
+    echo -e "${RED}❌ Erro: Domínio faltando${NC}"
+    echo -e "${YELLOW}Uso: bash install.sh DOMINIO${NC}"
+    echo -e "${YELLOW}Exemplo: bash install.sh mercuri.ialumi.cloud${NC}"
     exit 1
 fi
 
-PROJECT_NAME="$1"
-DOMAIN="$2"
-GITHUB_REPO="$3"
+DOMAIN="$1"
 PROJECT_DIR="/var/www/${PROJECT_NAME}"
 PM2_NAME="${PROJECT_NAME}"
 

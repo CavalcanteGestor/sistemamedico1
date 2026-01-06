@@ -14,13 +14,18 @@ scp install.sh root@SEU_SERVIDOR:/root/
 
 ```bash
 ssh root@SEU_SERVIDOR
-bash install.sh NOME_PROJETO URL_HOSTINGER GITHUB_REPO_URL
+bash install.sh DOMINIO
 ```
 
 **Exemplo:**
 ```bash
-bash install.sh sistema-medico mercuri.ialumi.cloud https://github.com/usuario/repo.git
+bash install.sh mercuri.ialumi.cloud
 ```
+
+**O script já sabe:**
+- ✅ Nome do projeto: `sistema-medico`
+- ✅ Repositório Git: `https://github.com/CavalcanteGestor/sistemamedico1.git`
+- ✅ Você só precisa fornecer o **domínio**
 
 ### O que o script faz automaticamente:
 
@@ -41,10 +46,11 @@ bash install.sh sistema-medico mercuri.ialumi.cloud https://github.com/usuario/r
 ### ⚠️ Importante
 
 - O script precisa ser executado como **root** (`sudo bash install.sh`)
-- Você precisa ter o arquivo `.env.local.example` no repositório
-- O script criará `.env.local` a partir do exemplo
-- **Configure as variáveis** em `.env.local` antes de continuar
-- O domínio deve apontar para o IP do servidor
+- Você só precisa fornecer o **domínio** (ex: `mercuri.ialumi.cloud`)
+- O script criará `.env.local` a partir de `.env.local.example`
+- **Configure as variáveis do Supabase** em `.env.local` quando solicitado
+- O domínio deve apontar para o IP do servidor antes de executar
+- O script pausa para você configurar o `.env.local` e depois continua
 
 ### 📋 Variáveis de Ambiente Necessárias
 
