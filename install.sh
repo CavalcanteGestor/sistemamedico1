@@ -137,7 +137,34 @@ if [ ! -f ".env.local" ]; then
     fi
 fi
 
-# 10. Instalar dependências
+# 10. Instruções sobre migrações do banco
+echo ""
+echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}📊 MIGRAÇÕES DO BANCO DE DADOS${NC}"
+echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${YELLOW}⚠️  IMPORTANTE: Execute as migrações do banco de dados${NC}"
+echo ""
+echo -e "${YELLOW}As migrações estão em: ${PROJECT_DIR}/supabase/migrations/${NC}"
+echo ""
+echo -e "${YELLOW}Opção 1 - Via Supabase Dashboard (Recomendado):${NC}"
+echo -e "  1. Acesse: https://supabase.com/dashboard"
+echo -e "  2. Selecione seu projeto"
+echo -e "  3. Vá em SQL Editor"
+echo -e "  4. Execute as migrações na ordem numérica:"
+echo -e "     - 001_initial_schema.sql"
+echo -e "     - 002_rls_policies.sql"
+echo -e "     - 003_... (e assim por diante)"
+echo ""
+echo -e "${YELLOW}Opção 2 - Via Supabase CLI:${NC}"
+echo -e "  cd ${PROJECT_DIR}"
+echo -e "  supabase db push"
+echo ""
+echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+echo ""
+read -p "Pressione ENTER para continuar (você pode executar as migrações depois)..."
+
+# 11. Instalar dependências
 echo -e "${BLUE}📦 Instalando dependências do projeto...${NC}"
 npm ci --production=false
 
