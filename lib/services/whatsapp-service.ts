@@ -760,11 +760,79 @@ function extractChatsFromMessages(messages: any[]): any[] {
       if (!existingChat || msgTimestamp > existingChat.lastMessageTimestamp) {
         const name = phoneToNameMap.get(normalizedPhone)?.name || normalizedPhone
         
+        // Extrair texto da última mensagem - PRIORIZAR TEXTO REAL
+        let lastMessageText = ''
+        const message = msg.message || {}
+        
+        // 1. Tentar mensagem de texto simples
+        if (message.conversation) {
+          lastMessageText = message.conversation
+        }
+        // 2. Tentar texto estendido
+        else if (message.extendedTextMessage?.text) {
+          lastMessageText = message.extendedTextMessage.text
+        }
+        // 3. Tentar captions de mídia (IMPORTANTE: mídia pode ter legenda!)
+        else if (message.imageMessage?.caption) {
+          lastMessageText = message.imageMessage.caption
+        }
+        else if (message.videoMessage?.caption) {
+          lastMessageText = message.videoMessage.caption
+        }
+        else if (message.audioMessage?.caption) {
+          lastMessageText = message.audioMessage.caption
+        }
+        else if (message.documentMessage?.caption) {
+          lastMessageText = message.documentMessage.caption
+        }
+        else if (message.documentMessage?.fileName) {
+          lastMessageText = message.documentMessage.fileName
+        }
+        else if (message.stickerMessage?.caption) {
+          lastMessageText = message.stickerMessage.caption
+        }
+        else if (message.locationMessage?.caption) {
+          lastMessageText = message.locationMessage.caption
+        }
+        else if (message.contactMessage?.displayName) {
+          lastMessageText = message.contactMessage.displayName
+        }
+        else if (message.buttonsResponseMessage?.selectedButtonId) {
+          lastMessageText = message.buttonsResponseMessage.selectedButtonId
+        }
+        else if (message.listResponseMessage?.singleSelectReply?.selectedRowId) {
+          lastMessageText = message.listResponseMessage.singleSelectReply.selectedRowId
+        }
+        // 4. Tentar msg.body como fallback
+        else if (msg.body) {
+          lastMessageText = msg.body
+        }
+        // 5. Só usar "[Mídia]" se realmente não houver texto
+        else if (message.imageMessage || message.videoMessage || message.audioMessage || 
+                 message.documentMessage || message.stickerMessage || message.locationMessage) {
+          // Se é mídia sem legenda, usar ícone apropriado
+          if (message.imageMessage) {
+            lastMessageText = '📷 Imagem'
+          } else if (message.videoMessage) {
+            lastMessageText = '🎥 Vídeo'
+          } else if (message.audioMessage) {
+            lastMessageText = '🎤 Áudio'
+          } else if (message.documentMessage) {
+            lastMessageText = '📄 Documento'
+          } else if (message.stickerMessage) {
+            lastMessageText = '😀 Figurinha'
+          } else if (message.locationMessage) {
+            lastMessageText = '📍 Localização'
+          } else {
+            lastMessageText = '[Mídia]'
+          }
+        }
+        
         chatMap.set(normalizedPhone, {
           id: standardPhone,
           jid: standardPhone,
           name,
-          lastMessage: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '[Mídia]' || '',
+          lastMessage: lastMessageText || '',
           lastMessageTimestamp: msgTimestamp,
           unreadCount: fromMe ? 0 : 1,
         })

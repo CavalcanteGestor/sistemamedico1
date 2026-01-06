@@ -564,14 +564,27 @@ export function ConversationList({
                 
                 // Se a mensagem do banco for mais recente ou igual (com margem de 5 segundos para compensar diferenças de clock)
                 if (dbLastMessageTime >= apiLastMessageTime - 5000) {
-                  // Priorizar mensagem de texto do banco se a da API for apenas "[Mídia]"
+                  // SEMPRE priorizar mensagem de texto do banco se ela existir e tiver texto real
+                  const dbMessageText = lastMessageMap[normalizedPhone]
+                  const isDbMessageText = dbMessageText && 
+                                         dbMessageText.trim() !== '' && 
+                                         !dbMessageText.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
+                  
                   const isApiMediaOnly = conv.ultima_mensagem.match(/^\[Mídia\]|^📷|^🎥|^🎤|^📄|^😀|^📍|^👤$/i)
-                  if (isApiMediaOnly || !conv.ultima_mensagem.trim()) {
-                    conv.ultima_mensagem = lastMessageMap[normalizedPhone]
-                  } else {
-                    // Se ambas têm texto, usar a mais recente
-                    conv.ultima_mensagem = lastMessageMap[normalizedPhone]
+                  
+                  // Se a mensagem do banco tem texto real, usar ela
+                  if (isDbMessageText) {
+                    conv.ultima_mensagem = dbMessageText
                   }
+                  // Se a API tem texto mas o banco não, manter a da API
+                  else if (!isApiMediaOnly && conv.ultima_mensagem.trim()) {
+                    // Manter a da API
+                  }
+                  // Se ambas são mídia ou vazias, usar a mais recente
+                  else {
+                    conv.ultima_mensagem = dbMessageText || conv.ultima_mensagem
+                  }
+                  
                   // Atualizar também o timestamp se for mais recente
                   if (dbLastMessageTime > apiLastMessageTime) {
                     conv.data_ultima_msg = new Date(dbLastMessage.timestamp || dbLastMessage.created_at).toISOString()
