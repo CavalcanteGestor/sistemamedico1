@@ -22,8 +22,25 @@ export function FollowUpScheduler() {
         
         const response = await fetch('/api/follow-up/process-scheduled', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // IMPORTANTE: Incluir cookies de autenticação
         })
+
+        // Se for erro 401, apenas logar em debug (não é crítico)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
+          
+          // 401 pode acontecer se usuário não estiver autenticado (não é crítico para scheduler)
+          if (response.status === 401) {
+            logger.debug('Scheduler: Usuário não autenticado, pulando processamento')
+            return
+          }
+          
+          // Outros erros são mais sérios
+          throw new Error(errorData.error || `Erro HTTP ${response.status}`)
+        }
 
         const result = await response.json()
         
@@ -45,8 +62,11 @@ export function FollowUpScheduler() {
             })
           }
         }
-      } catch (error) {
-        logger.error('Erro ao processar follow-ups', error)
+      } catch (error: any) {
+        // Apenas logar erros não relacionados a autenticação
+        if (!error.message?.includes('401') && !error.message?.includes('Não autenticado')) {
+          logger.error('Erro ao processar follow-ups', error)
+        }
       } finally {
         isProcessingRef.current = false
       }

@@ -13,41 +13,51 @@ import { processScheduledFollowUps } from '@/lib/services/follow-up-service'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Criar cliente Supabase com cookies da requisição
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    
+    // Tentar obter usuário (pode ser null se não autenticado)
+    let user = null
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      user = authUser
+    } catch (error) {
+      // Se der erro ao obter usuário, continuar sem autenticação (pode ser cron job)
+      console.log('[process-scheduled] Não foi possível obter usuário, pode ser chamada de cron job')
+    }
 
     // Verificar se é uma chamada autorizada (com token de autenticação ou secret)
     // Permitir chamadas sem autenticação se tiver secret key (para cron jobs)
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET_KEY
 
-    // Se tiver secret key configurado, verificar
-    if (cronSecret) {
-      const providedSecret = authHeader?.replace('Bearer ', '')
-      if (providedSecret !== cronSecret) {
+    // Se tiver secret key configurado, verificar primeiro
+    if (cronSecret && authHeader) {
+      const providedSecret = authHeader.replace('Bearer ', '').trim()
+      if (providedSecret === cronSecret) {
+        // Secret key válido - permitir execução
+      } else {
+        // Secret key inválido
         return NextResponse.json(
           { error: 'Não autorizado. Forneça o secret key correto.' },
           { status: 401 }
         )
       }
-    } else {
-      // Se não tiver secret key, requerer autenticação normal
-      if (!user) {
-        return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-      }
-
-      // Verificar permissão - apenas admin pode executar manualmente
+    } else if (user) {
+      // Usuário autenticado - verificar permissão
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single()
 
-      if (!profile || profile.role !== 'admin') {
+      // Permitir admin, medico e recepcionista (não apenas admin)
+      if (!profile || !['admin', 'medico', 'recepcionista', 'desenvolvedor'].includes(profile.role)) {
         return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
       }
+    } else {
+      // Sem autenticação e sem secret key válido
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
     // Processar follow-ups agendados e recorrentes
