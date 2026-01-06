@@ -14,18 +14,18 @@ scp install.sh root@SEU_SERVIDOR:/root/
 
 ```bash
 ssh root@SEU_SERVIDOR
-bash install.sh DOMINIO
+bash install.sh NOME_PROJETO DOMINIO
 ```
 
 **Exemplo:**
 ```bash
-bash install.sh mercuri.ialumi.cloud
+bash install.sh sistema-medico mercuri.ialumi.cloud
 ```
 
 **O script já sabe:**
-- ✅ Nome do projeto: `sistema-medico`
 - ✅ Repositório Git: `https://github.com/CavalcanteGestor/sistemamedico1.git`
-- ✅ Você só precisa fornecer o **domínio**
+- ✅ Você escolhe o **nome do projeto** (ex: sistema-medico, clinica-x, etc)
+- ✅ Você fornece o **domínio** (ex: mercuri.ialumi.cloud)
 
 ### O que o script faz automaticamente:
 
@@ -46,9 +46,13 @@ bash install.sh mercuri.ialumi.cloud
 ### ⚠️ Importante
 
 - O script precisa ser executado como **root** (`sudo bash install.sh`)
-- Você só precisa fornecer o **domínio** (ex: `mercuri.ialumi.cloud`)
+- Você escolhe o **nome do projeto** (será usado para diretório e PM2)
+- Você fornece o **domínio** (ex: `mercuri.ialumi.cloud`)
 - O script criará `.env.local` a partir de `.env.local.example`
-- **Configure as variáveis do Supabase** em `.env.local` quando solicitado
+- **Configure as variáveis do projeto Supabase** em `.env.local` quando solicitado:
+  - `NEXT_PUBLIC_SUPABASE_URL` - URL do seu projeto Supabase
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Chave anon do Supabase
+  - `SUPABASE_SERVICE_ROLE_KEY` - Chave service_role do Supabase
 - O domínio deve apontar para o IP do servidor antes de executar
 - O script pausa para você configurar o `.env.local` e depois continua
 
@@ -66,11 +70,20 @@ Configure em `.env.local` no servidor:
 Para atualizar após mudanças no código:
 
 ```bash
-cd /var/www/NOME_PROJETO
+cd /var/www/NOME_DO_SEU_PROJETO
 git pull origin main
 npm ci
 npm run build
-pm2 restart NOME_PROJETO
+pm2 restart NOME_DO_SEU_PROJETO
+```
+
+**Exemplo:**
+```bash
+cd /var/www/sistema-medico
+git pull origin main
+npm ci
+npm run build
+pm2 restart sistema-medico
 ```
 
 ### 📦 Comandos Úteis

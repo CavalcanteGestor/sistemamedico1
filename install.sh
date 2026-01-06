@@ -22,17 +22,17 @@ fi
 
 # Repositório Git padrão
 GITHUB_REPO="https://github.com/CavalcanteGestor/sistemamedico1.git"
-PROJECT_NAME="sistema-medico"
 
 # Verificar argumentos
-if [ -z "$1" ]; then
-    echo -e "${RED}❌ Erro: Domínio faltando${NC}"
-    echo -e "${YELLOW}Uso: bash install.sh DOMINIO${NC}"
-    echo -e "${YELLOW}Exemplo: bash install.sh mercuri.ialumi.cloud${NC}"
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo -e "${RED}❌ Erro: Argumentos faltando${NC}"
+    echo -e "${YELLOW}Uso: bash install.sh NOME_PROJETO DOMINIO${NC}"
+    echo -e "${YELLOW}Exemplo: bash install.sh sistema-medico mercuri.ialumi.cloud${NC}"
     exit 1
 fi
 
-DOMAIN="$1"
+PROJECT_NAME="$1"
+DOMAIN="$2"
 PROJECT_DIR="/var/www/${PROJECT_NAME}"
 PM2_NAME="${PROJECT_NAME}"
 
