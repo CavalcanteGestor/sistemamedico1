@@ -956,7 +956,9 @@ export async function getAllChats(): Promise<any[]> {
     let allMessages: any[] = []
     let page = 1
     let hasMore = true
-    const maxPages = 20
+    // Reduzir para 5 páginas (250 mensagens) - suficiente para extrair conversas recentes
+    // Isso reduz o tempo de carregamento de ~10s para ~2-3s
+    const maxPages = 5
     
     while (hasMore && page <= maxPages) {
       const response = await fetch(url, {
@@ -978,13 +980,19 @@ export async function getAllChats(): Promise<any[]> {
       }
 
       const data = await response.json()
-      console.log(`[getAllChats] Página ${page} - Total de registros:`, data.messages?.records?.length || 0)
+      const recordsCount = data.messages?.records?.length || 0
+      
+      // Log apenas a cada 2 páginas para reduzir spam
+      if (page % 2 === 0 || page === 1) {
+        console.log(`[getAllChats] Página ${page} - Total de registros:`, recordsCount)
+      }
       
       if (data.messages?.records && Array.isArray(data.messages.records)) {
         allMessages = [...allMessages, ...data.messages.records]
         
         const totalPages = data.messages.pages || 1
-        hasMore = page < totalPages
+        // Parar se já temos mensagens suficientes OU se chegamos ao limite de páginas
+        hasMore = page < totalPages && page < maxPages
         page++
       } else {
         console.warn('[getAllChats] Formato de resposta inesperado:', data)

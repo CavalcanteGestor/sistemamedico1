@@ -112,7 +112,7 @@ export function ConversationList({
       
       try {
         response = await fetch('/api/whatsapp/chats', {
-          signal: AbortSignal.timeout(10000), // Timeout de 10 segundos
+          signal: AbortSignal.timeout(30000), // Timeout de 30 segundos (aumentado para evitar timeout)
         })
         result = await response.json()
       } catch (fetchError: any) {
@@ -686,7 +686,7 @@ export function ConversationList({
       if (!loading && !searchQuery) {
         loadConversations()
       }
-    }, 120000) // Recarregar a cada 120 segundos (2 minutos) ao invés de 60
+    }, 300000) // Recarregar a cada 300 segundos (5 minutos) para reduzir carga no servidor
 
     // Retornar função de cleanup
     return () => {
