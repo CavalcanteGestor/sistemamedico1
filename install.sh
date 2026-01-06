@@ -100,6 +100,11 @@ else
     git pull origin main
 fi
 
+# Garantir que script de migração tenha permissão de execução
+if [ -f "scripts/execute-migrations-safe.sh" ]; then
+    chmod +x scripts/execute-migrations-safe.sh
+fi
+
 # 9. Criar .env.local se não existir
 if [ ! -f ".env.local" ]; then
     echo -e "${YELLOW}⚠️  Arquivo .env.local não encontrado${NC}"
@@ -122,6 +127,7 @@ if [ ! -f ".env.local" ]; then
         echo -e "  ${BLUE}NEXT_PUBLIC_SUPABASE_URL${NC}      - URL do seu projeto Supabase"
         echo -e "  ${BLUE}NEXT_PUBLIC_SUPABASE_ANON_KEY${NC}  - Chave anon do Supabase"
         echo -e "  ${BLUE}SUPABASE_SERVICE_ROLE_KEY${NC}      - Chave service_role do Supabase"
+        echo -e "  ${BLUE}SUPABASE_ACCESS_TOKEN${NC}          - Token de acesso (opcional, para migrações automáticas)"
         echo ""
         echo -e "${GREEN}✅ NEXT_PUBLIC_APP_URL já configurado como: https://${DOMAIN}${NC}"
         echo ""
@@ -137,126 +143,164 @@ if [ ! -f ".env.local" ]; then
     fi
 fi
 
-# 10. Executar migrações do banco de dados (opcional e seguro)
+# 10. Executar migrações do banco de dados automaticamente
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}📊 MIGRAÇÕES DO BANCO DE DADOS${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "${YELLOW}O script pode executar as migrações automaticamente de forma segura.${NC}"
-echo ""
-read -p "Deseja executar as migrações agora? (s/N): " EXECUTE_MIGRATIONS
 
-if [[ "$EXECUTE_MIGRATIONS" =~ ^[Ss]$ ]]; then
-    echo ""
-    echo -e "${BLUE}📦 Instalando Supabase CLI...${NC}"
+# Carregar variáveis do .env.local
+export $(grep -v '^#' .env.local | grep -E '^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ACCESS_TOKEN)=' | xargs)
+
+if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+    echo -e "${RED}❌ Variáveis do Supabase não encontradas no .env.local${NC}"
+    echo -e "${YELLOW}Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY${NC}"
+    exit 1
+fi
+
+# Extrair project ref da URL
+PROJECT_REF=$(echo $NEXT_PUBLIC_SUPABASE_URL | sed -n 's|https://\([^.]*\)\.supabase\.co|\1|p')
+
+if [ -z "$PROJECT_REF" ]; then
+    echo -e "${RED}❌ Não foi possível extrair o project ref da URL do Supabase${NC}"
+    exit 1
+fi
+
+MIGRATIONS_DIR="${PROJECT_DIR}/supabase/migrations"
+
+if [ -d "$MIGRATIONS_DIR" ]; then
+    MIGRATION_COUNT=$(ls -1 ${MIGRATIONS_DIR}/*.sql 2>/dev/null | wc -l)
     
-    # Instalar Supabase CLI se não existir
-    if ! command -v supabase &> /dev/null; then
-        # Baixar e instalar Supabase CLI
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "x86_64" ]; then
-            ARCH="amd64"
-        elif [ "$ARCH" = "aarch64" ]; then
-            ARCH="arm64"
-        fi
-        
-        SUPABASE_CLI_VERSION="1.200.0"
-        wget -qO- https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_${SUPABASE_CLI_VERSION}_linux_${ARCH}.tar.gz | tar -xz
-        mv supabase /usr/local/bin/
-        chmod +x /usr/local/bin/supabase
-        echo -e "${GREEN}✅ Supabase CLI instalado${NC}"
-    else
-        echo -e "${GREEN}✅ Supabase CLI já instalado${NC}"
-    fi
-    
-    # Verificar se .env.local existe e tem as variáveis necessárias
-    if [ ! -f ".env.local" ]; then
-        echo -e "${RED}❌ Arquivo .env.local não encontrado${NC}"
-        echo -e "${YELLOW}Configure o .env.local primeiro${NC}"
-        exit 1
-    fi
-    
-    # Carregar variáveis do .env.local de forma segura
-    export $(grep -v '^#' .env.local | grep -E '^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC_SUPABASE_ANON_KEY)=' | xargs)
-    
-    if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-        echo -e "${RED}❌ Variáveis do Supabase não encontradas no .env.local${NC}"
-        echo -e "${YELLOW}Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY${NC}"
-        exit 1
-    fi
-    
-    # Extrair project ref da URL
-    PROJECT_REF=$(echo $NEXT_PUBLIC_SUPABASE_URL | sed -n 's|https://\([^.]*\)\.supabase\.co|\1|p')
-    
-    if [ -z "$PROJECT_REF" ]; then
-        echo -e "${RED}❌ Não foi possível extrair o project ref da URL do Supabase${NC}"
-        exit 1
-    fi
-    
-    echo ""
-    echo -e "${YELLOW}⚠️  ATENÇÃO: As migrações serão executadas no projeto: ${PROJECT_REF}${NC}"
-    echo -e "${YELLOW}   Certifique-se de que este é o projeto correto!${NC}"
-    echo ""
-    read -p "Confirma a execução das migrações? (s/N): " CONFIRM_MIGRATIONS
-    
-    if [[ "$CONFIRM_MIGRATIONS" =~ ^[Ss]$ ]]; then
+    if [ $MIGRATION_COUNT -gt 0 ]; then
+        echo -e "${GREEN}✅ Encontradas ${MIGRATION_COUNT} migrações${NC}"
         echo ""
-        echo -e "${BLUE}🔄 Executando migrações...${NC}"
+        echo -e "${YELLOW}⚠️  ATENÇÃO: As migrações serão executadas no projeto: ${PROJECT_REF}${NC}"
+        echo ""
+        read -p "Deseja executar as migrações automaticamente agora? (S/n): " EXECUTE_MIGRATIONS
         
-        # Criar arquivo temporário de configuração do Supabase
-        SUPABASE_CONFIG_DIR="${PROJECT_DIR}/.supabase"
-        mkdir -p ${SUPABASE_CONFIG_DIR}
-        
-        # Criar config.toml básico
-        cat > ${SUPABASE_CONFIG_DIR}/config.toml << EOF
-project_id = "${PROJECT_REF}"
-EOF
-        
-        # Executar migrações uma por uma na ordem
-        MIGRATIONS_DIR="${PROJECT_DIR}/supabase/migrations"
-        if [ -d "$MIGRATIONS_DIR" ]; then
-            # Listar migrações em ordem
-            MIGRATION_FILES=$(ls -1 ${MIGRATIONS_DIR}/*.sql | sort)
-            
-            for MIGRATION_FILE in $MIGRATION_FILES; do
-                MIGRATION_NAME=$(basename "$MIGRATION_FILE")
-                echo -e "${BLUE}📄 Executando: ${MIGRATION_NAME}...${NC}"
-                
-                # Executar migração via script seguro
-                # Usar o script dedicado que tem melhor tratamento de erros
-                if [ -f "${PROJECT_DIR}/scripts/execute-migrations-safe.sh" ]; then
-                    bash "${PROJECT_DIR}/scripts/execute-migrations-safe.sh" "${PROJECT_DIR}" "${MIGRATION_FILE}"
-                else
-                    # Método alternativo: executar SQL diretamente
-                    # Nota: Para máxima segurança, recomenda-se executar manualmente
-                    echo -e "${YELLOW}⚠️  Script de migração não encontrado${NC}"
-                    echo -e "${YELLOW}   Execute manualmente no Supabase Dashboard: ${MIGRATION_NAME}${NC}"
-                    echo -e "${YELLOW}   Arquivo: ${MIGRATION_FILE}${NC}"
-                fi
-            done
-            
+        if [[ ! "$EXECUTE_MIGRATIONS" =~ ^[Nn]$ ]]; then
             echo ""
-            echo -e "${GREEN}✅ Migrações executadas${NC}"
-            echo -e "${YELLOW}💡 Verifique no Supabase Dashboard se todas foram aplicadas corretamente${NC}"
-        else
-            echo -e "${RED}❌ Diretório de migrações não encontrado: ${MIGRATIONS_DIR}${NC}"
+            echo -e "${BLUE}📦 Instalando Supabase CLI...${NC}"
+            
+            # Instalar Supabase CLI se não existir
+            if ! command -v supabase &> /dev/null; then
+                ARCH=$(uname -m)
+                if [ "$ARCH" = "x86_64" ]; then
+                    ARCH="amd64"
+                elif [ "$ARCH" = "aarch64" ]; then
+                    ARCH="arm64"
+                else
+                    echo -e "${YELLOW}⚠️  Arquitetura não suportada: ${ARCH}${NC}"
+                    EXECUTE_MIGRATIONS="n"
+                fi
+                
+                if [[ ! "$EXECUTE_MIGRATIONS" =~ ^[Nn]$ ]]; then
+                    SUPABASE_CLI_VERSION="1.200.0"
+                    echo -e "${BLUE}   Baixando Supabase CLI v${SUPABASE_CLI_VERSION}...${NC}"
+                    
+                    if wget -qO- https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_${SUPABASE_CLI_VERSION}_linux_${ARCH}.tar.gz 2>/dev/null | tar -xz 2>/dev/null; then
+                        mv supabase /usr/local/bin/ 2>/dev/null || cp supabase /usr/local/bin/ 2>/dev/null || true
+                        chmod +x /usr/local/bin/supabase
+                        rm -f supabase
+                        echo -e "${GREEN}✅ Supabase CLI instalado${NC}"
+                    else
+                        echo -e "${YELLOW}⚠️  Erro ao instalar Supabase CLI${NC}"
+                        EXECUTE_MIGRATIONS="n"
+                    fi
+                fi
+            else
+                echo -e "${GREEN}✅ Supabase CLI já instalado${NC}"
+            fi
+            
+            if [[ ! "$EXECUTE_MIGRATIONS" =~ ^[Nn]$ ]] && command -v supabase &> /dev/null; then
+                # Verificar se precisa de access token
+                if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+                    echo ""
+                    echo -e "${YELLOW}⚠️  SUPABASE_ACCESS_TOKEN não encontrado${NC}"
+                    echo -e "${YELLOW}   Para execução automática, você precisa criar um token:${NC}"
+                    echo -e "${YELLOW}   1. Acesse: https://supabase.com/dashboard/account/tokens${NC}"
+                    echo -e "${YELLOW}   2. Crie um novo token${NC}"
+                    echo -e "${YELLOW}   3. Adicione ao .env.local: SUPABASE_ACCESS_TOKEN=seu_token${NC}"
+                    echo ""
+                    echo -e "${YELLOW}   Por enquanto, execute as migrações manualmente${NC}"
+                    EXECUTE_MIGRATIONS="n"
+                fi
+                
+                if [[ ! "$EXECUTE_MIGRATIONS" =~ ^[Nn]$ ]] && [ -n "$SUPABASE_ACCESS_TOKEN" ]; then
+                    echo ""
+                    echo -e "${BLUE}🔐 Autenticando no Supabase...${NC}"
+                    echo "$SUPABASE_ACCESS_TOKEN" | supabase login --token - > /dev/null 2>&1
+                    
+                    if [ $? -eq 0 ]; then
+                        echo -e "${GREEN}✅ Autenticação realizada${NC}"
+                        
+                        # Vincular projeto
+                        echo -e "${BLUE}🔗 Vinculando projeto ${PROJECT_REF}...${NC}"
+                        cd ${PROJECT_DIR}
+                        supabase link --project-ref ${PROJECT_REF} > /dev/null 2>&1
+                        
+                        if [ $? -eq 0 ]; then
+                            echo -e "${GREEN}✅ Projeto vinculado${NC}"
+                            
+                            # Executar migrações
+                            echo -e "${BLUE}📄 Executando ${MIGRATION_COUNT} migrações...${NC}"
+                            echo ""
+                            
+                            if supabase db push > /dev/null 2>&1; then
+                                echo -e "${GREEN}✅ Migrações executadas com sucesso!${NC}"
+                            else
+                                echo -e "${YELLOW}⚠️  Erro ao executar migrações via CLI${NC}"
+                                echo -e "${YELLOW}   Execute manualmente no Dashboard${NC}"
+                                EXECUTE_MIGRATIONS="n"
+                            fi
+                        else
+                            echo -e "${YELLOW}⚠️  Erro ao vincular projeto${NC}"
+                            echo -e "${YELLOW}   Execute as migrações manualmente${NC}"
+                            EXECUTE_MIGRATIONS="n"
+                        fi
+                    else
+                        echo -e "${YELLOW}⚠️  Erro na autenticação${NC}"
+                        echo -e "${YELLOW}   Verifique o SUPABASE_ACCESS_TOKEN${NC}"
+                        EXECUTE_MIGRATIONS="n"
+                    fi
+                fi
+            fi
+        fi
+        
+        # Se não executou automaticamente, mostrar instruções
+        if [[ "$EXECUTE_MIGRATIONS" =~ ^[Nn]$ ]] || [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo ""
+            echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+            echo -e "${BLUE}📋 EXECUTAR MIGRAÇÕES MANUALMENTE${NC}"
+            echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+            echo ""
+            echo -e "${YELLOW}1. Acesse: https://supabase.com/dashboard/project/${PROJECT_REF}${NC}"
+            echo -e "${YELLOW}2. Vá em SQL Editor > New Query${NC}"
+            echo -e "${YELLOW}3. Execute as migrações em ordem numérica:${NC}"
+            ls -1 ${MIGRATIONS_DIR}/*.sql | sort | head -10 | while read file; do
+                echo -e "   ${GREEN}✓${NC} $(basename "$file")"
+            done
+            if [ $MIGRATION_COUNT -gt 10 ]; then
+                echo -e "   ${YELLOW}... e mais $(($MIGRATION_COUNT - 10)) migrações${NC}"
+            fi
+            echo ""
+            echo -e "${YELLOW}⚠️  IMPORTANTE: Execute na ordem numérica (001, 002, 003...)!${NC}"
+            echo ""
+            read -p "Pressione ENTER para continuar..."
         fi
     else
-        echo -e "${YELLOW}Migrações canceladas. Execute manualmente depois.${NC}"
+        echo -e "${YELLOW}⚠️  Nenhuma migração encontrada${NC}"
     fi
 else
-    echo ""
-    echo -e "${YELLOW}Migrações serão executadas manualmente depois.${NC}"
-    echo -e "${YELLOW}As migrações estão em: ${PROJECT_DIR}/supabase/migrations/${NC}"
-    echo -e "${YELLOW}Execute no Supabase Dashboard > SQL Editor${NC}"
+    echo -e "${YELLOW}⚠️  Diretório de migrações não encontrado${NC}"
 fi
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
-# 11. Instalar dependências
+# 11. Instalar dependências do projeto
 echo -e "${BLUE}📦 Instalando dependências do projeto...${NC}"
 npm ci --production=false
 
@@ -271,14 +315,14 @@ fi
 
 echo -e "${GREEN}✅ Build concluído${NC}"
 
-# 12. Configurar PM2
+# 13. Configurar PM2
 echo -e "${BLUE}⚙️  Configurando PM2...${NC}"
 pm2 delete ${PM2_NAME} 2>/dev/null || true
 cd ${PROJECT_DIR}
 pm2 start npm --name ${PM2_NAME} -- start
 pm2 save
 
-# 13. Obter certificado SSL (se não existir)
+# 14. Obter certificado SSL (se não existir)
 echo -e "${BLUE}🔐 Verificando certificado SSL...${NC}"
 if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
     echo -e "${YELLOW}⚠️  Certificado SSL não encontrado${NC}"
@@ -317,7 +361,7 @@ else
     echo -e "${GREEN}✅ Certificado SSL já existe${NC}"
 fi
 
-# 14. Configurar Nginx com SSL
+# 15. Configurar Nginx com SSL
 echo -e "${BLUE}🌐 Configurando Nginx...${NC}"
 cat > /etc/nginx/sites-available/${PROJECT_NAME} << EOF
 server {
@@ -362,14 +406,24 @@ nginx -t
 # Recarregar Nginx
 systemctl reload nginx
 
-# 15. Verificar status
+# 16. Verificar status
 echo -e "${BLUE}🔍 Verificando status...${NC}"
 pm2 status ${PM2_NAME}
 systemctl status nginx --no-pager | head -5
 
+echo ""
+echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ Instalação concluída com sucesso!${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+echo ""
 echo -e "${GREEN}🌐 Acesse: https://${DOMAIN}${NC}"
-echo -e "${YELLOW}💡 Para ver logs: pm2 logs ${PM2_NAME}${NC}"
-echo -e "${YELLOW}💡 Para reiniciar: pm2 restart ${PM2_NAME}${NC}"
-echo -e "${YELLOW}💡 Para atualizar: cd ${PROJECT_DIR} && git pull && npm ci && npm run build && pm2 restart ${PM2_NAME}${NC}"
-
+echo ""
+echo -e "${YELLOW}⚠️  LEMBRE-SE:${NC}"
+echo -e "${YELLOW}   - Verifique se todas as migrações foram executadas${NC}"
+echo -e "${YELLOW}   - Configure outras variáveis no .env.local se necessário${NC}"
+echo ""
+echo -e "${BLUE}💡 Comandos úteis:${NC}"
+echo -e "  ${YELLOW}Ver logs:${NC} pm2 logs ${PM2_NAME}"
+echo -e "  ${YELLOW}Reiniciar:${NC} pm2 restart ${PM2_NAME}"
+echo -e "  ${YELLOW}Atualizar:${NC} cd ${PROJECT_DIR} && git pull && npm ci && npm run build && pm2 restart ${PM2_NAME}"
+echo ""
