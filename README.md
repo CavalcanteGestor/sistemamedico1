@@ -2,7 +2,9 @@
 
 Sistema completo de gestão médica com prontuário eletrônico, agendamentos, telemedicina e mais.
 
-## 🚀 Deploy Rápido
+## 🚀 Deploy Rápido para VPS
+
+### Uso Simples
 
 ```bash
 chmod +x deploy.sh
@@ -14,21 +16,28 @@ chmod +x deploy.sh
 ./deploy.sh sistema-medico mercuri.ialumi.cloud
 ```
 
-O script faz tudo automaticamente:
-- ✅ Build do projeto
-- ✅ Envio para VPS
-- ✅ Instalação de dependências
-- ✅ Configuração PM2
-- ✅ Configuração Nginx
-- ✅ SSL/HTTPS
+### O que o script faz automaticamente:
 
-## 📋 Pré-requisitos
+1. ✅ Verifica pré-requisitos
+2. ✅ Instala dependências localmente
+3. ✅ Faz build do projeto
+4. ✅ Envia arquivos para VPS via rsync
+5. ✅ Instala dependências no servidor
+6. ✅ Faz build no servidor
+7. ✅ Configura PM2
+8. ✅ Configura Nginx com SSL
+9. ✅ Recarrega serviços
 
-1. Arquivo `.env.local` configurado
-2. Acesso SSH ao servidor VPS
-3. Certificado SSL (Let's Encrypt) configurado no servidor
+### 📋 Pré-requisitos
 
-## 🔧 Variáveis de Ambiente
+1. **Arquivo `.env.local`** configurado com todas as variáveis
+2. **Acesso SSH** ao servidor VPS (chave SSH configurada)
+3. **Certificado SSL** já instalado no servidor (Let's Encrypt)
+4. **Node.js e npm** instalados no servidor
+5. **PM2** instalado no servidor (`npm install -g pm2`)
+6. **Nginx** instalado e configurado no servidor
+
+### 🔧 Variáveis de Ambiente Necessárias
 
 Configure em `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -37,9 +46,15 @@ Configure em `.env.local`:
 - `NEXT_PUBLIC_APP_URL`
 - E outras variáveis necessárias
 
-## 📦 Scripts Disponíveis
+### 📦 Scripts Disponíveis
 
 - `npm run dev` - Desenvolvimento
 - `npm run build` - Build de produção
 - `npm run start` - Iniciar servidor
-- `./deploy.sh` - Deploy completo para VPS
+- `./deploy.sh NOME URL` - Deploy completo para VPS
+
+### ⚠️ Importante
+
+- O script assume que você tem acesso SSH sem senha (chave SSH configurada)
+- O certificado SSL deve estar em `/etc/letsencrypt/live/DOMINIO/`
+- O script cria/atualiza a configuração Nginx automaticamente
