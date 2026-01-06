@@ -130,10 +130,26 @@ export function ConversationList({
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)))
           return loadConversations(retryCount + 1)
         }
+        
+        // Log detalhado do erro
+        console.error('[ConversationList] Erro ao buscar conversas:', {
+          error: result.error,
+          details: result.details,
+          status: response?.status,
+        })
+        
         throw new Error(result.error || 'Erro ao buscar conversas')
       }
 
       const chats = result.data || []
+      
+      // Log para debug
+      if (chats.length === 0 && result.message) {
+        console.warn('[ConversationList] Nenhuma conversa encontrada:', result.message)
+        if (result.debug) {
+          console.warn('[ConversationList] Debug info:', result.debug)
+        }
+      }
 
       // Se não houver conversas, retornar lista vazia
       if (chats.length === 0) {

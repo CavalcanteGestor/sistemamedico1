@@ -34,6 +34,20 @@ export async function GET(request: NextRequest) {
           evolutionApiUrl: process.env.EVOLUTION_API_URL || process.env.NEXT_PUBLIC_EVOLUTION_API_URL,
           instanceName: process.env.EVOLUTION_INSTANCE_NAME,
         })
+        
+        // Retornar sucesso mas com array vazio e mensagem informativa
+        return NextResponse.json({ 
+          success: true, 
+          data: [],
+          message: 'Nenhuma conversa encontrada. Verifique se o WhatsApp está conectado na Evolution API.',
+          debug: {
+            url: process.env.EVOLUTION_API_URL || process.env.NEXT_PUBLIC_EVOLUTION_API_URL,
+            instance: process.env.EVOLUTION_INSTANCE_NAME,
+            hasUrl: !!process.env.EVOLUTION_API_URL,
+            hasKey: !!process.env.EVOLUTION_API_KEY,
+            hasInstance: !!process.env.EVOLUTION_INSTANCE_NAME,
+          }
+        })
       }
       
       return NextResponse.json({ 
@@ -54,6 +68,9 @@ export async function GET(request: NextRequest) {
           message: apiError.message,
           url: process.env.EVOLUTION_API_URL || process.env.NEXT_PUBLIC_EVOLUTION_API_URL,
           instance: process.env.EVOLUTION_INSTANCE_NAME,
+          hasUrl: !!process.env.EVOLUTION_API_URL,
+          hasKey: !!process.env.EVOLUTION_API_KEY,
+          hasInstance: !!process.env.EVOLUTION_INSTANCE_NAME,
         }
       }, { status: 500 })
     }

@@ -785,11 +785,103 @@ function extractChatsFromMessages(messages: any[]): any[] {
  */
 export async function getAllChats(): Promise<any[]> {
   if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-    throw new Error('Evolution API não configurada')
+    console.error('[getAllChats] Evolution API não configurada:', {
+      hasUrl: !!EVOLUTION_API_URL,
+      hasKey: !!EVOLUTION_API_KEY,
+      url: EVOLUTION_API_URL,
+    })
+    throw new Error('Evolution API não configurada. Verifique as variáveis de ambiente EVOLUTION_API_URL e EVOLUTION_API_KEY')
+  }
+
+  if (!EVOLUTION_INSTANCE_NAME) {
+    console.error('[getAllChats] Nome da instância não configurado')
+    throw new Error('Nome da instância não configurado. Verifique a variável de ambiente EVOLUTION_INSTANCE_NAME')
   }
 
   try {
+    // Tentar primeiro o endpoint de chats diretamente (mais eficiente)
+    let directChats: any[] = []
+    
+    try {
+      const chatsUrl = `${EVOLUTION_API_URL}/chat/fetchChats/${EVOLUTION_INSTANCE_NAME}`
+      console.log('[getAllChats] Tentando buscar chats diretamente:', chatsUrl)
+      
+      const chatsResponse = await fetch(chatsUrl, {
+        method: 'GET',
+        headers: {
+          'apikey': EVOLUTION_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (chatsResponse.ok) {
+        const chatsData = await chatsResponse.json()
+        console.log('[getAllChats] Resposta do endpoint de chats:', chatsData)
+        
+        if (Array.isArray(chatsData)) {
+          directChats = chatsData
+        } else if (chatsData.chats && Array.isArray(chatsData.chats)) {
+          directChats = chatsData.chats
+        } else if (chatsData.data && Array.isArray(chatsData.data)) {
+          directChats = chatsData.data
+        }
+        
+        if (directChats.length > 0) {
+          console.log(`[getAllChats] ✅ Encontrados ${directChats.length} chats diretamente`)
+          // Processar e retornar
+          const processedChats = directChats.map((chat: any) => ({
+            id: chat.id || chat.jid || chat.remoteJid || '',
+            jid: chat.jid || chat.id || chat.remoteJid || '',
+            name: chat.name || chat.pushName || chat.notifyName || '',
+            lastMessage: chat.lastMessage || null,
+            lastMessageTimestamp: chat.lastMessageTimestamp || chat.conversationTimestamp || 0,
+            unreadCount: chat.unreadCount || 0,
+          }))
+          
+          // Buscar leads para enriquecer nomes
+          const supabase = createClient()
+          let leadsMap: Record<string, any> = {}
+          
+          try {
+            const { data: leads } = await supabase
+              .from('leads')
+              .select('nome, telefone')
+            
+            if (leads) {
+              leads.forEach((lead: any) => {
+                if (lead.telefone && lead.nome) {
+                  const normalized = lead.telefone.replace('@s.whatsapp.net', '').replace(/@[^\s]+/g, '').trim()
+                  leadsMap[normalized] = lead.nome
+                }
+              })
+            }
+          } catch (error) {
+            // Não crítico
+          }
+          
+          // Enriquecer com nomes dos leads
+          return processedChats.map((chat: any) => {
+            const phoneNormalized = (chat.id || chat.jid || '').replace('@s.whatsapp.net', '').replace(/@[^\s]+/g, '').trim()
+            const leadName = leadsMap[phoneNormalized]
+            
+            if (leadName && (!chat.name || chat.name === phoneNormalized)) {
+              return { ...chat, name: leadName }
+            }
+            
+            return chat
+          })
+        }
+      } else {
+        console.warn('[getAllChats] Endpoint de chats retornou erro:', chatsResponse.status, chatsResponse.statusText)
+      }
+    } catch (chatsError: any) {
+      console.warn('[getAllChats] Erro ao buscar chats diretamente, tentando método alternativo:', chatsError.message)
+    }
+
+    // Fallback: buscar mensagens e extrair conversas
+    console.log('[getAllChats] Usando método alternativo: buscar mensagens e extrair conversas')
     const url = `${EVOLUTION_API_URL}/chat/findMessages/${EVOLUTION_INSTANCE_NAME}`
+    console.log('[getAllChats] URL:', url)
     
     let allMessages: any[] = []
     let page = 1
@@ -809,9 +901,14 @@ export async function getAllChats(): Promise<any[]> {
         }),
       })
 
-      if (!response.ok) break
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[getAllChats] Erro na página ${page}:`, response.status, response.statusText, errorText)
+        break
+      }
 
       const data = await response.json()
+      console.log(`[getAllChats] Página ${page} - Total de registros:`, data.messages?.records?.length || 0)
       
       if (data.messages?.records && Array.isArray(data.messages.records)) {
         allMessages = [...allMessages, ...data.messages.records]
@@ -820,16 +917,31 @@ export async function getAllChats(): Promise<any[]> {
         hasMore = page < totalPages
         page++
       } else {
+        console.warn('[getAllChats] Formato de resposta inesperado:', data)
         hasMore = false
       }
     }
+    
+    console.log(`[getAllChats] Total de mensagens coletadas: ${allMessages.length}`)
 
+    if (allMessages.length === 0) {
+      console.warn('[getAllChats] ⚠️ Nenhuma mensagem encontrada na Evolution API')
+      console.warn('[getAllChats] Verifique:')
+      console.warn('  1. Se o WhatsApp está conectado na Evolution API')
+      console.warn('  2. Se o nome da instância está correto:', EVOLUTION_INSTANCE_NAME)
+      console.warn('  3. Se a URL da Evolution API está correta:', EVOLUTION_API_URL)
+      return []
+    }
+
+    const extractedChats = extractChatsFromMessages(allMessages)
+    console.log(`[getAllChats] ✅ Extraídos ${extractedChats.length} chats de ${allMessages.length} mensagens`)
+    
     // Buscar leads para enriquecer nomes
-    const supabase = createClient()
-    let leadsMap: Record<string, any> = {}
+    const supabaseClient = createClient()
+    const leadsMap: Record<string, any> = {}
     
     try {
-      const { data: leads } = await supabase
+      const { data: leads } = await supabaseClient
         .from('leads')
         .select('nome, telefone')
       
@@ -844,12 +956,9 @@ export async function getAllChats(): Promise<any[]> {
     } catch (error) {
       // Não crítico
     }
-
-    const chats = extractChatsFromMessages(allMessages)
     
-    // Enriquecer com nomes dos leads
-    return chats.map((chat: any) => {
-      const phoneNormalized = chat.id.replace('@s.whatsapp.net', '').replace(/@[^\s]+/g, '').trim()
+    const enrichedChats = extractedChats.map((chat: any) => {
+      const phoneNormalized = (chat.id || '').replace('@s.whatsapp.net', '').replace(/@[^\s]+/g, '').trim()
       const leadName = leadsMap[phoneNormalized]
       
       if (leadName && (!chat.name || chat.name === phoneNormalized)) {
@@ -858,9 +967,13 @@ export async function getAllChats(): Promise<any[]> {
       
       return chat
     })
+    
+    console.log(`[getAllChats] ✅ Retornando ${enrichedChats.length} chats enriquecidos`)
+    return enrichedChats
   } catch (error: any) {
-    console.error('[getAllChats] Erro:', error)
-    throw error
+    console.error('[getAllChats] ❌ Erro completo:', error)
+    console.error('[getAllChats] Stack:', error.stack)
+    throw new Error(`Erro ao buscar conversas: ${error.message || 'Erro desconhecido'}`)
   }
 }
 
