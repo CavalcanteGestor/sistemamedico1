@@ -241,8 +241,9 @@ export function MessageInput({ onSend, disabled = false, placeholder = 'Digite u
             rows={1}
             className={cn(
               'min-h-[44px] max-h-32 resize-none',
-              'pr-12 bg-white rounded-lg',
-              'border-gray-300 focus:border-primary',
+              'pr-12 bg-white dark:bg-[#202C33] rounded-lg',
+              'border-gray-300 dark:border-gray-600 focus:border-primary',
+              'text-gray-900 dark:text-gray-100',
             )}
           />
         </div>

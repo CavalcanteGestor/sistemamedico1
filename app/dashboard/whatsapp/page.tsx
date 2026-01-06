@@ -13,22 +13,29 @@ export default function WhatsAppPage() {
   const router = useRouter()
   const [selectedPhone, setSelectedPhone] = useState<string | undefined>()
   const [contactName, setContactName] = useState<string | undefined>()
+  const [contactAvatar, setContactAvatar] = useState<string | undefined>()
   const [searchQuery, setSearchQuery] = useState('')
   const supabase = createClient()
 
-  const handleSelectConversation = async (phone: string, conversationName?: string) => {
+  const handleSelectConversation = async (phone: string, conversationName?: string, avatar?: string) => {
     // Se for o mesmo telefone, não fazer nada
     if (selectedPhone === phone) {
       return
     }
     
-    // Limpar nome primeiro
+    // Limpar nome e avatar primeiro
     setContactName(undefined)
+    setContactAvatar(undefined)
     
     // Mudar telefone - a key do componente vai garantir recriação completa
     setSelectedPhone(phone)
     
-    // Buscar nome do contato (priorizar lead cadastrado, depois nome da conversa, depois telefone)
+    // Se já temos avatar da lista, usar ele
+    if (avatar) {
+      setContactAvatar(avatar)
+    }
+    
+    // Buscar nome do contato e avatar (priorizar lead cadastrado, depois nome da conversa, depois telefone)
     try {
       // Primeiro tentar buscar do lead
       const { data: lead, error } = await supabase
@@ -48,6 +55,21 @@ export default function WhatsAppPage() {
         setContactName(conversationName)
       } else {
         setContactName(phone.replace('@s.whatsapp.net', '').replace('@lid', ''))
+      }
+      
+      // Buscar avatar se não tiver
+      if (!avatar) {
+        try {
+          const response = await fetch(`/api/whatsapp/profile-picture?phone=${encodeURIComponent(phone)}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.avatar) {
+              setContactAvatar(data.avatar)
+            }
+          }
+        } catch (error) {
+          // Não crítico
+        }
       }
     } catch (error) {
       logger.error('Erro ao buscar contato', error, { phone })
@@ -102,7 +124,7 @@ export default function WhatsAppPage() {
               key={`chat-${selectedPhone}`} 
               phone={selectedPhone} 
               contactName={contactName}
-              contactAvatar={undefined}
+              contactAvatar={contactAvatar}
             />
           )}
           {!selectedPhone && (

@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { Check, CheckCheck, Download, File, Image as ImageIcon, Video, Music, Play, Pause } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useRef, useEffect } from 'react'
+import { useTheme } from 'next-themes'
 
 interface MessageBubbleProps {
   message: string
@@ -35,11 +36,33 @@ export function MessageBubble({
   const [audioPlaying, setAudioPlaying] = useState(false)
   const [audioDuration, setAudioDuration] = useState(0)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [isDark, setIsDark] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
 
-  // Cores do WhatsApp
-  const sentBgColor = '#DCF8C6' // Verde claro do WhatsApp
-  const receivedBgColor = '#FFFFFF' // Branco do WhatsApp
+  // Detectar modo escuro dinamicamente
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'))
+    }
+    
+    // Verificar imediatamente
+    if (typeof window !== 'undefined') {
+      checkDarkMode()
+      
+      // Observar mudanças no tema
+      const observer = new MutationObserver(checkDarkMode)
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class'],
+      })
+      
+      return () => observer.disconnect()
+    }
+  }, [])
+
+  // Cores do WhatsApp - suporte a modo escuro
+  const sentBgColor = isDark ? '#005C4B' : '#DCF8C6' // Verde claro do WhatsApp (claro) / Verde escuro (escuro)
+  const receivedBgColor = isDark ? '#202C33' : '#FFFFFF' // Branco do WhatsApp (claro) / Cinza escuro (escuro)
 
   useEffect(() => {
     const audio = audioRef.current
@@ -285,7 +308,9 @@ export function MessageBubble({
         {message && !mediaUrl && (
           <p className={cn(
             "text-sm whitespace-pre-wrap break-words",
-            isSent ? "text-gray-800" : "text-gray-900"
+            isSent 
+              ? "text-gray-800 dark:text-gray-100" 
+              : "text-gray-900 dark:text-gray-100"
           )}>
             {message}
           </p>
@@ -295,7 +320,9 @@ export function MessageBubble({
         {message && mediaUrl && (
           <p className={cn(
             "text-sm whitespace-pre-wrap break-words mt-2",
-            isSent ? "text-gray-800" : "text-gray-900"
+            isSent 
+              ? "text-gray-800 dark:text-gray-100" 
+              : "text-gray-900 dark:text-gray-100"
           )}>
             {message}
           </p>
@@ -304,7 +331,9 @@ export function MessageBubble({
         {/* Rodapé com horário e status */}
         <div className={cn(
           'flex items-center justify-end gap-1 mt-1',
-          isSent ? 'text-gray-600' : 'text-gray-500'
+          isSent 
+            ? 'text-gray-600 dark:text-gray-300' 
+            : 'text-gray-500 dark:text-gray-400'
         )}>
           <span className="text-xs leading-none opacity-70">
             {formatTimestamp(new Date(timestamp))}

@@ -46,11 +46,16 @@ export default function WhatsAppFullscreenPage() {
     checkAuth()
   }, [router])
 
-  const handleSelectConversation = async (phone: string, name?: string) => {
+  const handleSelectConversation = async (phone: string, name?: string, avatar?: string) => {
     setSelectedPhone(phone)
     setContactName(name || '')
     
-    // Buscar avatar se houver lead
+    // Se já temos avatar da lista, usar ele
+    if (avatar) {
+      setContactAvatar(avatar)
+    }
+    
+    // Buscar avatar se não tiver
     const supabase = createClient()
     const phoneClean = phone.replace('@s.whatsapp.net', '').trim()
     
@@ -65,8 +70,20 @@ export default function WhatsAppFullscreenPage() {
         setContactName(lead.nome)
       }
       
-      // Avatar pode ser implementado depois se necessário
-      setContactAvatar('')
+      // Buscar avatar se não tiver
+      if (!avatar) {
+        try {
+          const response = await fetch(`/api/whatsapp/profile-picture?phone=${encodeURIComponent(phone)}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.avatar) {
+              setContactAvatar(data.avatar)
+            }
+          }
+        } catch (error) {
+          // Não crítico
+        }
+      }
     } catch (error) {
       // Não crítico
     }

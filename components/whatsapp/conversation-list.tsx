@@ -23,7 +23,7 @@ interface Conversation {
 
 interface ConversationListProps {
   selectedPhone?: string
-  onSelectConversation: (phone: string, name?: string) => void
+  onSelectConversation: (phone: string, name?: string, avatar?: string) => void
   searchQuery?: string
   onSearchChange?: (query: string) => void
 }
@@ -694,13 +694,14 @@ export function ConversationList({
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = scrollArea
       // Carregar mais quando estiver a 200px do final
-      if (scrollHeight - scrollTop - clientHeight < 200 && hasMore && !loadingMore && !loading) {
+      if (scrollHeight - scrollTop - clientHeight < 200 && hasMore && !loadingMore && !loading && !searchQuery) {
         loadMoreConversations()
       }
     }
 
     scrollArea.addEventListener('scroll', handleScroll)
     return () => scrollArea.removeEventListener('scroll', handleScroll)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loadingMore, loading, searchQuery])
 
   const subscribeToConversations = () => {
@@ -854,7 +855,7 @@ export function ConversationList({
               return (
                 <button
                   key={conversation.telefone}
-                  onClick={() => onSelectConversation(conversation.telefone, conversation.nome)}
+                  onClick={() => onSelectConversation(conversation.telefone, conversation.nome, conversation.avatar)}
                   className={cn(
                     'w-full p-3 text-left hover:bg-muted transition-colors',
                     selectedPhone === conversation.telefone && 'bg-muted'

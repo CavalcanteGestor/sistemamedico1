@@ -959,8 +959,9 @@ export async function getAllChats(page: number = 1): Promise<any[]> {
     let hasMore = true
     // Carregar 5 páginas por vez (250 mensagens por página)
     // Página 1 = páginas 1-5, Página 2 = páginas 6-10, etc.
-    const pagesPerRequest = 5
-    const startPage = (page - 1) * pagesPerRequest + 1
+    // Para primeira página, carregar mais para ter conversas suficientes
+    const pagesPerRequest = page === 1 ? 10 : 5 // Primeira página carrega mais
+    const startPage = page === 1 ? 1 : ((page - 2) * 5 + 6) // Ajustar cálculo para páginas seguintes
     const endPage = startPage + pagesPerRequest - 1
     
     while (hasMore && currentPage <= endPage) {
@@ -972,7 +973,7 @@ export async function getAllChats(page: number = 1): Promise<any[]> {
         },
         body: JSON.stringify({
           limit: 1000,
-          page,
+          page: currentPage,
         }),
       })
 

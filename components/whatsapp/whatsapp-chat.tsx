@@ -623,21 +623,56 @@ export function WhatsAppChat({ phone, contactName, contactAvatar, showSidebar = 
     }
   }
 
+  const getInitials = (name?: string) => {
+    if (!name) return '?'
+    const parts = name.trim().split(' ')
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
+
   return (
     <div className="flex-1 flex h-full overflow-hidden">
-      <Card className="flex-1 flex flex-col h-full bg-[#EFE7DD]">
-        <CardHeader className="border-b pb-3 bg-white">
+      <Card className="flex-1 flex flex-col h-full bg-[#EFE7DD] dark:bg-[#0B141A]">
+        <CardHeader className="border-b pb-3 bg-white dark:bg-[#202C33]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              {/* Avatar no header */}
+              <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center relative">
+                {contactAvatar ? (
+                  <img 
+                    src={contactAvatar} 
+                    alt={contactName || phone}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                      const parent = target.parentElement
+                      if (parent && !parent.querySelector('span')) {
+                        const initials = document.createElement('span')
+                        initials.className = 'text-primary font-medium text-sm'
+                        initials.textContent = getInitials(contactName || phone.replace('@s.whatsapp.net', ''))
+                        parent.appendChild(initials)
+                      }
+                    }}
+                  />
+                ) : (
+                  <span className="text-primary font-medium text-sm">
+                    {getInitials(contactName || phone.replace('@s.whatsapp.net', ''))}
+                  </span>
+                )}
+              </div>
               <div>
-                <h3 className="font-semibold">{contactName || phone.replace('@s.whatsapp.net', '')}</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">{contactName || phone.replace('@s.whatsapp.net', '')}</h3>
                 {/* Status de conexão removido */}
               </div>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden bg-[#EFE7DD] dark:bg-[#0B141A]">
           <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
             {loading && messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
