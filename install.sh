@@ -411,6 +411,37 @@ echo -e "${BLUE}🔍 Verificando status...${NC}"
 pm2 status ${PM2_NAME}
 systemctl status nginx --no-pager | head -5
 
+# 17. Configurar cron job para follow-ups (opcional)
+echo ""
+echo -e "${BLUE}⏰ Configurar cron job para processar follow-ups automaticamente?${NC}"
+echo -e "${YELLOW}   (Recomendado para produção - processa follow-ups a cada 1 minuto)${NC}"
+read -p "Configurar cron job? (s/N): " SETUP_CRON
+
+if [[ "$SETUP_CRON" =~ ^[Ss]$ ]]; then
+    echo -e "${BLUE}⏰ Configurando cron job...${NC}"
+    
+    # Tornar script executável
+    if [ -f "${PROJECT_DIR}/scripts/cron-follow-up.sh" ]; then
+        chmod +x ${PROJECT_DIR}/scripts/cron-follow-up.sh
+        
+        # Verificar se já existe
+        if crontab -l 2>/dev/null | grep -q "cron-follow-up.sh"; then
+            echo -e "${YELLOW}⚠️  Cron job já existe${NC}"
+        else
+            # Adicionar ao crontab
+            (crontab -l 2>/dev/null; echo "* * * * * ${PROJECT_DIR}/scripts/cron-follow-up.sh >> /var/log/follow-up-cron.log 2>&1") | crontab -
+            echo -e "${GREEN}✅ Cron job configurado!${NC}"
+            echo -e "${YELLOW}   Logs: tail -f /var/log/follow-up-cron.log${NC}"
+        fi
+        
+        # Criar arquivo de log se não existir
+        touch /var/log/follow-up-cron.log
+        chmod 644 /var/log/follow-up-cron.log
+    else
+        echo -e "${YELLOW}⚠️  Script cron-follow-up.sh não encontrado${NC}"
+    fi
+fi
+
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ Instalação concluída com sucesso!${NC}"
@@ -421,9 +452,17 @@ echo ""
 echo -e "${YELLOW}⚠️  LEMBRE-SE:${NC}"
 echo -e "${YELLOW}   - Verifique se todas as migrações foram executadas${NC}"
 echo -e "${YELLOW}   - Configure outras variáveis no .env.local se necessário${NC}"
+if [[ "$SETUP_CRON" =~ ^[Ss]$ ]]; then
+    echo -e "${YELLOW}   - Cron job configurado para processar follow-ups automaticamente${NC}"
+else
+    echo -e "${YELLOW}   - Configure cron job manualmente: bash ${PROJECT_DIR}/scripts/setup-cron-follow-up.sh${NC}"
+fi
 echo ""
 echo -e "${BLUE}💡 Comandos úteis:${NC}"
 echo -e "  ${YELLOW}Ver logs:${NC} pm2 logs ${PM2_NAME}"
 echo -e "  ${YELLOW}Reiniciar:${NC} pm2 restart ${PM2_NAME}"
 echo -e "  ${YELLOW}Atualizar:${NC} cd ${PROJECT_DIR} && git pull && npm ci && npm run build && pm2 restart ${PM2_NAME}"
+if [[ "$SETUP_CRON" =~ ^[Ss]$ ]]; then
+    echo -e "  ${YELLOW}Ver logs do cron:${NC} tail -f /var/log/follow-up-cron.log"
+fi
 echo ""

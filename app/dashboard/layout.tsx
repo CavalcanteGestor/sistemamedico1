@@ -61,7 +61,8 @@ export default function DashboardLayout({
         </div>
       </main>
       <Toaster />
-      <FollowUpScheduler />
+      {/* Scheduler apenas em desenvolvimento - em produção usar cron job */}
+      {process.env.NODE_ENV === 'development' && <FollowUpScheduler />}
     </div>
   )
 }
