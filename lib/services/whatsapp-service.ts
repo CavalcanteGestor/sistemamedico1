@@ -839,11 +839,12 @@ export async function getAllChats(): Promise<any[]> {
           }))
           
           // Buscar leads para enriquecer nomes
-          const supabase = createClient()
           let leadsMap: Record<string, any> = {}
           
           try {
-            const { data: leads } = await supabase
+            // Usar createAdminClient para acesso no servidor
+            const supabaseAdmin = createAdminClient()
+            const { data: leads } = await supabaseAdmin
               .from('leads')
               .select('nome, telefone')
             
@@ -856,7 +857,8 @@ export async function getAllChats(): Promise<any[]> {
               })
             }
           } catch (error) {
-            // Não crítico
+            // Não crítico - apenas log
+            console.warn('[getAllChats] Erro ao buscar leads (não crítico):', error)
           }
           
           // Enriquecer com nomes dos leads
@@ -937,11 +939,12 @@ export async function getAllChats(): Promise<any[]> {
     console.log(`[getAllChats] ✅ Extraídos ${extractedChats.length} chats de ${allMessages.length} mensagens`)
     
     // Buscar leads para enriquecer nomes
-    const supabaseClient = createClient()
     const leadsMap: Record<string, any> = {}
     
     try {
-      const { data: leads } = await supabaseClient
+      // Usar createAdminClient para acesso no servidor
+      const supabaseAdmin = createAdminClient()
+      const { data: leads } = await supabaseAdmin
         .from('leads')
         .select('nome, telefone')
       
@@ -954,7 +957,8 @@ export async function getAllChats(): Promise<any[]> {
         })
       }
     } catch (error) {
-      // Não crítico
+      // Não crítico - apenas log
+      console.warn('[getAllChats] Erro ao buscar leads (não crítico):', error)
     }
     
     const enrichedChats = extractedChats.map((chat: any) => {

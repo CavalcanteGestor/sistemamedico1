@@ -76,9 +76,32 @@ export async function GET(request: NextRequest) {
     }
   } catch (error: any) {
     logger.error('Erro ao buscar conversas', error)
+    
+    // Garantir que sempre retornamos JSON, mesmo em caso de erro
+    const errorMessage = error?.message || 'Erro ao buscar conversas'
+    const errorStack = error?.stack || ''
+    
+    console.error('[GET /api/whatsapp/chats] Erro completo:', {
+      message: errorMessage,
+      stack: errorStack,
+      name: error?.name,
+    })
+    
     return NextResponse.json(
-      { error: error.message || 'Erro ao buscar conversas' },
-      { status: 500 }
+      { 
+        success: false,
+        error: errorMessage,
+        details: {
+          message: errorMessage,
+          type: error?.name || 'UnknownError',
+        }
+      },
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     )
   }
 }
