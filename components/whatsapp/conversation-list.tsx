@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -38,6 +38,10 @@ export function ConversationList({
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
   
+  // Cache de fotos de perfil para evitar requisições repetidas
+  const avatarCacheRef = useRef<Record<string, { url: string; timestamp: number }>>({})
+  const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 horas
+  
   // Função para normalizar telefone (consistente em todo o código)
   // IMPORTANTE: Deve ser idêntica à função no extractChatsFromMessages
   const normalizePhoneForComparison = (p: string): string => {
@@ -71,22 +75,61 @@ export function ConversationList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   
+  // Debounce na busca para evitar requisições excessivas
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   useEffect(() => {
-    if (!loading) {
-      loadConversations()
+    // Limpar timeout anterior
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    
+    // Aguardar 300ms antes de buscar (debounce)
+    searchTimeoutRef.current = setTimeout(() => {
+      if (!loading) {
+        loadConversations()
+      }
+    }, 300)
+    
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  const loadConversations = async () => {
+  const loadConversations = async (retryCount = 0) => {
+    const MAX_RETRIES = 3
+    const RETRY_DELAY = 1000 // 1 segundo
+    
     try {
       setLoading(true)
 
-      // Buscar conversas da Evolution API
-      const response = await fetch('/api/whatsapp/chats')
-      const result = await response.json()
+      // Buscar conversas da Evolution API com retry logic
+      let response: Response | null = null
+      let result: any = null
+      
+      try {
+        response = await fetch('/api/whatsapp/chats', {
+          signal: AbortSignal.timeout(10000), // Timeout de 10 segundos
+        })
+        result = await response.json()
+      } catch (fetchError: any) {
+        // Se for erro de timeout ou rede, tentar novamente
+        if (retryCount < MAX_RETRIES && (fetchError.name === 'TimeoutError' || fetchError.name === 'TypeError')) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)))
+          return loadConversations(retryCount + 1)
+        }
+        throw fetchError
+      }
 
       if (!result.success) {
+        // Se for erro temporário, tentar novamente
+        if (retryCount < MAX_RETRIES && result.error?.includes('timeout')) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)))
+          return loadConversations(retryCount + 1)
+        }
         throw new Error(result.error || 'Erro ao buscar conversas')
       }
 
@@ -364,13 +407,27 @@ export function ConversationList({
       try {
         const phoneList = conversationsData.map(c => c.telefone).filter(Boolean)
         if (phoneList.length > 0) {
-          // Buscar fotos de perfil em paralelo (limitado a 5 por vez para não sobrecarregar)
+          // Buscar fotos de perfil em paralelo com cache
           // Fazer de forma não-bloqueante para não atrasar o carregamento da lista
           const avatarMap: Record<string, string> = {}
+          const now = Date.now()
+          
+          // Filtrar telefones que precisam buscar foto (não estão em cache ou cache expirado)
+          const phonesToFetch = phoneList.slice(0, 5).filter(phone => {
+            const normalizedPhone = normalizePhoneForComparison(phone)
+            const cached = avatarCacheRef.current[phone] || avatarCacheRef.current[normalizedPhone]
+            if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+              // Usar foto do cache
+              avatarMap[phone] = cached.url
+              avatarMap[normalizedPhone] = cached.url
+              return false // Não precisa buscar
+            }
+            return true // Precisa buscar
+          })
           
           // Buscar fotos em background (não bloquear renderização)
           Promise.all(
-            phoneList.slice(0, 5).map(async (phone) => {
+            phonesToFetch.map(async (phone) => {
               try {
                 const response = await fetch(`/api/whatsapp/profile-picture?phone=${encodeURIComponent(phone)}`, {
                   signal: AbortSignal.timeout(3000), // Timeout de 3 segundos
@@ -379,13 +436,20 @@ export function ConversationList({
                   const data = await response.json()
                   if (data.avatar) {
                     const normalizedPhone = normalizePhoneForComparison(phone)
-                    avatarMap[phone] = data.avatar
-                    avatarMap[normalizedPhone] = data.avatar
+                    const avatarUrl = data.avatar
+                    
+                    // Salvar no cache
+                    avatarCacheRef.current[phone] = { url: avatarUrl, timestamp: now }
+                    avatarCacheRef.current[normalizedPhone] = { url: avatarUrl, timestamp: now }
+                    
+                    avatarMap[phone] = avatarUrl
+                    avatarMap[normalizedPhone] = avatarUrl
+                    
                     // Atualizar estado para re-renderizar com foto
                     setConversations(prev => prev.map(conv => {
                       const convNormalized = normalizePhoneForComparison(conv.telefone)
                       if (convNormalized === normalizedPhone || conv.telefone === phone) {
-                        return { ...conv, avatar: data.avatar }
+                        return { ...conv, avatar: avatarUrl }
                       }
                       return conv
                     }))
@@ -397,6 +461,14 @@ export function ConversationList({
             })
           ).catch(() => {
             // Ignorar erros - não crítico
+          })
+          
+          // Aplicar cache imediatamente para conversas que já têm foto em cache
+          conversationsData.forEach(conv => {
+            const normalizedPhone = normalizePhoneForComparison(conv.telefone)
+            if (avatarMap[conv.telefone] || avatarMap[normalizedPhone]) {
+              conv.avatar = avatarMap[conv.telefone] || avatarMap[normalizedPhone]
+            }
           })
           
           // Buscar TODAS as mensagens para cada telefone e processar localmente
@@ -618,10 +690,34 @@ export function ConversationList({
     }
   }
 
+  // Memoizar conversas filtradas para evitar re-renders desnecessários
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery) return conversations
+    const queryLower = searchQuery.toLowerCase()
+    return conversations.filter(
+      (c) =>
+        c.nome.toLowerCase().includes(queryLower) ||
+        c.telefone.includes(searchQuery)
+    )
+  }, [conversations, searchQuery])
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col items-center justify-center h-full p-6 space-y-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         <p className="text-sm text-muted-foreground">Carregando conversas...</p>
+        {/* Skeleton loaders */}
+        <div className="w-full space-y-3 mt-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-start gap-3 p-3 animate-pulse">
+              <div className="w-12 h-12 rounded-full bg-muted"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-muted rounded w-3/4"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -641,7 +737,7 @@ export function ConversationList({
       </div>
 
       <ScrollArea className="flex-1">
-        {conversations.length === 0 ? (
+        {filteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-6 space-y-3">
             <div className="text-center max-w-sm">
               <p className="text-sm font-medium text-muted-foreground mb-2">
@@ -666,7 +762,7 @@ export function ConversationList({
           </div>
         ) : (
           <div className="divide-y">
-            {conversations.map((conversation) => {
+            {filteredConversations.map((conversation) => {
               const getInitials = (name?: string) => {
                 if (!name) return '?'
                 const parts = name.trim().split(' ')
@@ -693,12 +789,13 @@ export function ConversationList({
                           src={conversation.avatar} 
                           alt={conversation.nome}
                           className="w-full h-full object-cover"
+                          loading="lazy"
                           onError={(e) => {
                             // Se falhar ao carregar imagem, mostrar iniciais
                             const target = e.target as HTMLImageElement
                             target.style.display = 'none'
                             const parent = target.parentElement
-                            if (parent) {
+                            if (parent && !parent.querySelector('span')) {
                               const initials = document.createElement('span')
                               initials.className = 'text-primary font-medium text-sm'
                               initials.textContent = getInitials(conversation.nome)
