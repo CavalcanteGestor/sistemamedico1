@@ -106,10 +106,31 @@ if [ ! -f ".env.local" ]; then
     if [ -f ".env.local.example" ]; then
         echo -e "${BLUE}📝 Copiando .env.local.example...${NC}"
         cp .env.local.example .env.local
-        echo -e "${YELLOW}⚠️  Configure as variáveis em ${PROJECT_DIR}/.env.local${NC}"
-        echo -e "${YELLOW}   Use: nano ${PROJECT_DIR}/.env.local${NC}"
-        echo -e "${YELLOW}   Depois execute novamente este script${NC}"
-        exit 1
+        
+        # Atualizar NEXT_PUBLIC_APP_URL automaticamente
+        sed -i "s|NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=https://${DOMAIN}|g" .env.local
+        
+        echo ""
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+        echo -e "${BLUE}📋 CONFIGURAÇÃO DO PROJETO SUPABASE${NC}"
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${YELLOW}Configure as variáveis do seu projeto Supabase em:${NC}"
+        echo -e "${GREEN}${PROJECT_DIR}/.env.local${NC}"
+        echo ""
+        echo -e "${YELLOW}Variáveis necessárias do Supabase:${NC}"
+        echo -e "  ${BLUE}NEXT_PUBLIC_SUPABASE_URL${NC}      - URL do seu projeto Supabase"
+        echo -e "  ${BLUE}NEXT_PUBLIC_SUPABASE_ANON_KEY${NC}  - Chave anon do Supabase"
+        echo -e "  ${BLUE}SUPABASE_SERVICE_ROLE_KEY${NC}      - Chave service_role do Supabase"
+        echo ""
+        echo -e "${GREEN}✅ NEXT_PUBLIC_APP_URL já configurado como: https://${DOMAIN}${NC}"
+        echo ""
+        echo -e "${YELLOW}Para editar:${NC}"
+        echo -e "  ${BLUE}nano ${PROJECT_DIR}/.env.local${NC}"
+        echo ""
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+        echo ""
+        read -p "Pressione ENTER após configurar o .env.local para continuar..."
     else
         echo -e "${RED}❌ Arquivo .env.local.example não encontrado${NC}"
         exit 1
