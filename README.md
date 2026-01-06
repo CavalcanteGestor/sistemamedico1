@@ -4,22 +4,40 @@ Sistema completo de gestão médica com prontuário eletrônico, agendamentos, t
 
 ## 🚀 Instalação no Servidor VPS - SUPER SIMPLES!
 
-### Processo Completo (2 passos apenas):
+### Para Termius (Mais Fácil!):
+
+**Conecte ao servidor no Termius e execute:**
+
+```bash
+cd /root
+wget https://raw.githubusercontent.com/CavalcanteGestor/sistemamedico1/main/install.sh
+chmod +x install.sh
+bash install.sh NOME_PROJETO DOMINIO
+```
+
+**Exemplo completo:**
+```bash
+cd /root
+wget https://raw.githubusercontent.com/CavalcanteGestor/sistemamedico1/main/install.sh
+chmod +x install.sh
+bash install.sh sistema-medico mercuri.ialumi.cloud
+```
+
+**Pronto!** O script será baixado automaticamente e executado!
+
+---
+
+### Alternativa: Via SCP (se preferir):
 
 **1. Enviar script para o servidor:**
 ```bash
 scp install.sh root@SEU_SERVIDOR:/root/
 ```
 
-**2. Conectar e executar (o script faz TUDO):**
+**2. Conectar e executar:**
 ```bash
 ssh root@SEU_SERVIDOR
 bash install.sh NOME_PROJETO DOMINIO
-```
-
-**Exemplo:**
-```bash
-bash install.sh sistema-medico mercuri.ialumi.cloud
 ```
 
 ### ✅ O script faz automaticamente:
